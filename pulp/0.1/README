@@ -1,0 +1,123 @@
+***********************************************************
+****:::::'########:::::::::::::'##:::::::'########:::::****
+****::::: ##.... ##:::::::::::: ##::::::: ##.... ##::::****
+****::::: ##:::: ##:::::::::::: ##::::::: ##:::: ##::::****
+****::::: ########::'##::::'##: ##::::::: ########:::::****
+****::::: ##.....::: ##:::: ##: ##::::::: ##.....::::::****
+****::::: ##:::::::: ##:::: ##: ##::::::: ##:::::::::::****
+****::::: ##::::::::. #######:: ########: ##:::::::::::****
+****:::::..::::::::::.......:::........::..::::::::::::****
+***********************************************************
+*********************** Version 0.1 ***********************
+********************************************************************************
+
+ PuLP: Multi-Objective Multi-Constraint Partitioning using Label Propagation
+              Copyright (2015) Sandia Corporation
+
+Questions?  Contact George M. Slota    (gmslota@sandia.gov)
+                    Siva Rajamanickam  (srajama@sandia.gov)
+
+********************************************************************************
+Version info:
+
+v0.1 -- 9 December 2015
+--Initial release
+
+
+********************************************************************************
+To make:
+
+1.) Set CXX in Makefile to your c++ compiler, adjust CXXFLAGS if necessary
+-OpenMP 3.0 support is required for parallel execution
+-No other dependencies needed
+
+2.) $ make pulp
+-This will make pulp executable
+
+3.) $ make libpulp
+-This will make libpulp.a static library
+
+
+********************************************************************************
+To run:
+
+$ ./pulp [graphfile] [num parts] [options]
+
+[graphfile] is of adjacency list (METIS) format, n is number of vertices, m is number of undirected edges, vertex ids are 1-indexed:
+n m
+v2 v3 v4
+v1 v3 v5 v6 v8
+v1 v2 
+... etc
+
+[num parts] is the number of desired partitions (>=2)
+
+Options:
+  -v [#.#]:
+      Vertex balance constraint [default: 1.10 (10%)]
+  -e [#.#]:
+      Edge balance constraint [default: none; 1.50 (50%) when -c option is used]
+  -c:
+      Attempt to minimize per-part cut in addition to total edgecut
+  -l:
+      Do label propagation-based initialization
+  -m [#]:
+      Generate multiple partitions [default: 1]
+  -o [file]:
+      Output parts file [default: graphname.part.numparts(.#)]
+  -i [file]:
+      Input parts file [default: none]
+  -q:
+      Evaluate generated partition quality
+
+[Input/Output Files] has n lines. Each line contains a single integer [0...(num parts-1)] that corresponds to the part assignment of the vertex identifier of that line number. I.e., a '5' on line 7 indicates that vertex 7 is assigned to part 5.
+
+
+********************************************************************************
+Examples:
+
+1.) Generate 16 parts of Live Journal network with default vertex balance constraint, only minimizing edge cut, and using the default BFS-based initialization; perform quality evaluation
+
+$ ./pulp LiveJournal.adj 16 -q
+
+
+2.) Generate 16 parts of Live Journal network with tighter vertex balance constraint (3%), only minimizing edge cut, and using label propagation-based initialization
+
+$ ./pulp LiveJournal.adj 16 -v 1.03 -l
+
+
+3.) Generate 128 parts of Live Journal network with tighter vertex balance constraint and looser edge balance constraint while minimizing edge cut and using BSF-based initialization
+
+$./pulp LiveJournal.adj 128 -v 1.03 -e 2.5
+
+
+4.) Generate 128 parts of Live Journal network with tighter vertex balance constraint and looser edge balance constraint while minimizing both edge cut and max per-part edge cut, write output part file to tmp.parts
+
+$./pulp LiveJournal.adj 128 -v 1.03 -e 2.5 -o temp.parts -c
+
+
+5.) Generate 16 parts of Live Journal network with tighter vertex balance constraint and looser edge balance constraint while minimizing both edge cut and max per-part edge cut, reading in an initial partition, and writing output part file to tmp.parts
+
+$./pulp LiveJournal.adj 128 -v 1.03 -e 2.5 -in input.parts -o temp.parts -c
+
+
+5.) Generate 5 different partitionings of Live Journal network each having 16 parts with tighter vertex balance constraint and looser edge balance constraint while doing label propagation-based initialization
+
+$./pulp LiveJournal.adj 128 -v 1.03 -e 2.5 -o temp.parts -m 5 -l
+Note: outputs will be written to temp.parts.0, temp.parts.1, ..., temp.parts.4
+
+
+********************************************************************************
+Notes:
+
+1.) The use case for PuLP is small-world graphs with skewed degree distributions. Other partitioners are more well-suited for handling regular mesh-like graphs. PuLP can partition such graphs quickly, but the quality won't be as high as when using other tools.
+2.) Be careful when determining vertex and edge balance constraints, as you might create a problem for which there is no solution; PuLP will take longer to execute and the output won't be as nice as you're expecting
+
+
+********************************************************************************
+Known issues:
+
+1.) Minimal error checking for inputs, exact format listed above for graphfile required; be careful when passing filepaths since there's no error handling
+2.) No options for adjusting iteration counts for various algorithm loops, however, these can be changed in the source files
+3.) Currently, networks with more than 2^32 vertices will not run
+4.) Vertex and edge weights currently not supported. Planned for future versions

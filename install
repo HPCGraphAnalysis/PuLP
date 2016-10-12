@@ -1,0 +1,24 @@
+#!/bin/bash
+
+PULPVERSION=0.2
+XTRAPULPVERSION=0.2
+
+cd pulp/$PULPVERSION/
+make
+cd ../..
+
+cd xtrapulp/$XTRAPULPVERSION/
+make
+cd ../..
+
+if [ ! -d include/ ]; then
+  mkdir include
+fi
+if [ ! -d lib/ ]; then
+  mkdir lib
+fi
+
+cp pulp/$PULPVERSION/libpulp.a lib/
+cp pulp/$PULPVERSION/pulp.h include/
+cp xtrapulp/$XTRAPULPVERSION/libxtrapulp.a lib/
+cp xtrapulp/$XTRAPULPVERSION/xtrapulp.h include/

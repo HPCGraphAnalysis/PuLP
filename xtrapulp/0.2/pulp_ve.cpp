@@ -56,8 +56,8 @@
 #include "pulp_util.h"
 #include "pulp_ve.h"
 
-#define X 1.0
-#define Y 0.25
+//#define X 1.0
+//#define Y 0.25
 #define CUT_CHANGE 0.95
 #define BAL_CHANGE 0.95
 #define BAL_CUTOFF 1.05
@@ -65,6 +65,7 @@
 extern int procid, nprocs;
 extern int seed;
 extern bool verbose, debug, verify;
+extern float X,Y;
 
 int pulp_ve(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
             pulp_data_t *pulp,            
@@ -159,7 +160,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       }
 
       int32_t max_part = part;
-      double max_val = -1.0;
+      double max_val = 0.0;
       uint64_t num_max = 0;
       for (int32_t p = 0; p < pulp->num_parts; ++p)
       {
@@ -349,7 +350,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       }
       
       int32_t max_part = part;
-      double max_val = -1.0;
+      double max_val = 0.0;
       uint64_t num_max = 0;
       for (int32_t p = 0; p < pulp->num_parts; ++p)
       {
@@ -636,7 +637,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       }
 
       int32_t max_part = part;
-      double max_val = -1.0;
+      double max_val = 0.0;
       uint64_t num_max = 0;
       for (int32_t p = 0; p < pulp->num_parts; ++p)
       {
@@ -832,7 +833,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       }
       
       int32_t max_part = part;
-      double max_val = -1.0;
+      double max_val = 0.0;
       uint64_t num_max = 0;
       for (int32_t p = 0; p < pulp->num_parts; ++p)
       {

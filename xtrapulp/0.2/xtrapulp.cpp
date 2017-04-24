@@ -66,6 +66,7 @@
 int procid, nprocs;
 int seed;
 bool verbose, debug, verify;
+float X,Y;
 
 extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
           int* parts, int num_parts)
@@ -98,6 +99,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
   double do_label_prop = ppc->do_lp_init;
   double do_nonrandom_init = ppc->do_bfs_init;
   verbose = ppc->verbose_output;
+  debug = false;
   bool do_vert_balance = true;
   bool do_edge_balance = ppc->do_edge_balance;
   bool do_maxcut_balance = ppc->do_maxcut_balance;
@@ -114,6 +116,18 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
   //int edge_refine_iter = 10;
   int num_parts = (int)pulp->num_parts;
   seed = ppc->pulp_seed;
+
+  X = 1.0;
+  Y = 0.25;
+  // Tighten up allowable exchange for small graphs, 
+  //  and just use random initialization - BFS/Label prop might result
+  //  in zero
+  if (g->n/(long unsigned)nprocs < 100) {
+    Y = 1.0;
+    X = 2.0;
+    do_label_prop = false;
+    do_nonrandom_init = false;
+  }
 
   double elt, elt2, elt3;
   elt = timer();
@@ -143,9 +157,9 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
   }
   else if (!do_repart)
   {
-    if (procid == 0 && verbose) printf("\tDoing block init stage with %d parts\n", num_parts);
+    if (procid == 0 && verbose) printf("\tDoing rand init stage with %d parts\n", num_parts);
     elt2 = timer();
-    pulp_init_block(g, comm, q, pulp);
+    pulp_init_rand(g, comm, q, pulp);
     elt2 = timer() - elt2;
     if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt2);
   }

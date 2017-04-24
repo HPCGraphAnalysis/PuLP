@@ -56,8 +56,8 @@
 #include "pulp_util.h"
 #include "pulp_vec.h"
 
-#define X 1.0
-#define Y 0.25
+//#define X 1.0
+//#define Y 0.25
 #define CUT_CHANGE 0.95
 #define BAL_CHANGE 0.95
 #define BAL_CUTOFF 1.05
@@ -65,6 +65,7 @@
 extern int procid, nprocs;
 extern int seed;
 extern bool verbose, debug, verify;
+extern float X,Y;
 
 int pulp_vec(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
             pulp_data_t *pulp,            
@@ -181,7 +182,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       }
 
       int32_t max_part = part;
-      double max_val = -1.0;
+      double max_val = 0.0;
       uint64_t num_max = 0;
       int64_t max_count = 0;
       int64_t part_count = (int64_t)tp.part_counts[part];
@@ -438,7 +439,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       }
 
       int32_t max_part = part;
-      double max_val = -1.0;
+      double max_val = 0.0;
       uint64_t num_max = 0;
       int64_t max_count = 0;
       int64_t part_count = (int64_t)tp.part_counts[part];
@@ -682,15 +683,6 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
 
 
-
-
-
-
-
-
-
-
-
 int pulp_vec_weighted(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
             pulp_data_t *pulp,            
             uint64_t outer_iter, 
@@ -817,7 +809,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       }
 
       int32_t max_part = part;
-      double max_val = -1.0;
+      double max_val = 0.0;
       uint64_t num_max = 0;
       int64_t max_count = 0;
       int64_t part_count = (int64_t)tp.part_counts[part];
@@ -1082,7 +1074,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       }
 
       int32_t max_part = part;
-      double max_val = -1.0;
+      double max_val = 0.0;
       uint64_t num_max = 0;
       int64_t max_count = 0;
       int64_t part_count = (int64_t)tp.part_counts[part];

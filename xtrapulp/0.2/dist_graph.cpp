@@ -225,7 +225,7 @@ int create_graph(dist_graph_t* g,
   {
     g->vertex_weights = vertex_weights;
     g->vertex_weights_sum = 0;
-    for (uint64_t i = 0; i < g->n; ++i)
+    for (uint64_t i = 0; i < g->n_local; ++i)
       g->vertex_weights_sum += g->vertex_weights[i];
     MPI_Allreduce(MPI_IN_PLACE, &g->vertex_weights_sum, 1, 
                   MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);

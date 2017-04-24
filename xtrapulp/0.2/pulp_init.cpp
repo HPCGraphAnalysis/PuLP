@@ -149,27 +149,33 @@ void pulp_init_block(
   for (int32_t i = 0; i < nprocs; ++i)
     comm->sendcounts_temp[i] = 0;
 
-  uint64_t num_per_part = g->n_local / (uint64_t)pulp->num_parts;
+  uint64_t num_per_part = g->n / (uint64_t)pulp->num_parts + 1;
 
 #pragma omp parallel 
 {
   thread_queue_t tq;
   thread_comm_t tc;
+  thread_pulp_t tp;
   init_thread_queue(&tq);
   init_thread_comm(&tc);
 
-#pragma omp for
+  for (int32_t p = 0; p < pulp->num_parts; ++p)
+    tp.part_weights[p] = 0.0;
+
+#pragma omp for nowait
   for (uint64_t i = 0; i < g->n_local; ++i)
   {
-    int32_t this_part = (int32_t)(i / num_per_part);
-    pulp->local_parts[i] = this_part;
+    uint64_t gid = g->local_unmap[i];
+    int32_t part_assignment = (int32_t)(gid / num_per_part);
+    pulp->local_parts[i] = part_assignment;
+    assert(part_assignment < pulp->num_parts);
   }
 
 #pragma omp for
   for (uint64_t i = g->n_local; i < g->n_total; ++i)
     pulp->local_parts[i] = -1;
 
-#pragma omp for schedule(guided) nowait
+#pragma omp for schedule(guided)  nowait 
   for (uint64_t i = 0; i < g->n_local; ++i)
     update_sendcounts_thread(g, &tc, i);
 
@@ -214,10 +220,12 @@ void pulp_init_block(
 
   clear_thread_queue(&tq);
   clear_thread_comm(&tc);
+
 } // end parallel
 
   if (debug) { printf("Task %d pulp_block_init() success\n", procid); }
 }
+
 
 void pulp_init_bfs_pull(
   dist_graph_t* g, mpi_data_t* comm, queue_data_t* q, pulp_data_t* pulp)
@@ -619,7 +627,7 @@ void pulp_init_bfs_max(
 
     MPI_Allreduce(MPI_IN_PLACE, pulp->part_size_changes, pulp->num_parts, 
       MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
-     for (int32_t p = 0; p < pulp->num_parts; ++p)
+    for (int32_t p = 0; p < pulp->num_parts; ++p)
     {
       pulp->part_sizes[p] += pulp->part_size_changes[p];
       pulp->part_size_changes[p] = 0;
@@ -1026,7 +1034,7 @@ void pulp_init_label_prop(dist_graph_t* g,
 for (uint64_t cur_iter = 0; cur_iter < lp_num_iter; ++cur_iter)
 {
 
-#pragma omp for schedule(guided)  nowait
+#pragma omp for schedule(guided) nowait
   for (uint64_t vert_index = 0; vert_index < g->n_local; ++vert_index)
   {
     int32_t part = pulp->local_parts[vert_index];

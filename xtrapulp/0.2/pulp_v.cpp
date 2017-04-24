@@ -57,8 +57,8 @@
 #include "pulp_util.h"
 #include "pulp_v.h"
 
-#define X 1.0
-#define Y 0.25
+//#define X 1.0
+//#define Y 0.25
 #define CUT_CHANGE 0.95
 #define BAL_CHANGE 0.95
 #define BAL_CUTOFF 1.05
@@ -66,6 +66,7 @@
 extern int procid, nprocs;
 extern int seed;
 extern bool verbose, debug, verify;
+extern float X,Y;
 
 int pulp_v(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
             pulp_data_t *pulp,            
@@ -156,7 +157,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       }
 
       int32_t max_part = part;
-      double max_val = -1.0;
+      double max_val = 0.0;
       uint64_t num_max = 0;
       for (int32_t p = 0; p < pulp->num_parts; ++p)
       {
@@ -315,7 +316,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       }
       
       int32_t max_part = part;
-      double max_val = -1.0;
+      double max_val = 0.0;
       uint64_t num_max = 0;
       for (int32_t p = 0; p < pulp->num_parts; ++p)
       {
@@ -343,7 +344,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
           new_size = pulp->part_sizes[max_part] + pulp->part_size_changes[max_part] + 1 :
           new_size = (int64_t)((double)pulp->part_sizes[max_part] + multiplier*(double)pulp->part_size_changes[max_part] + 1.0);
 
-        if (new_size < (int64_t)pulp->avg_size*vert_balance)
+        if (new_size < (int64_t)(pulp->avg_size*vert_balance))
         {
           ++num_swapped_2;
       #pragma omp atomic
@@ -475,17 +476,6 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 int pulp_v_weighted(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
             pulp_data_t *pulp,            
             uint64_t outer_iter, 
@@ -586,7 +576,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       }
 
       int32_t max_part = part;
-      double max_val = -1.0;
+      double max_val = 0.0;
       uint64_t num_max = 0;
       for (int32_t p = 0; p < pulp->num_parts; ++p)
       {
@@ -614,6 +604,9 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
       if (max_part != part)
       {
+        /*printf("%d %d - %lu to %d (%li + %li) from %d (%li + %li), %f\n", 
+          procid, omp_get_thread_num(), g->local_unmap[vert_index], max_part, pulp->part_sizes[max_part], pulp->part_size_changes[max_part], part, pulp->part_sizes[part], pulp->part_size_changes[part], max_val);*/
+
         ++num_swapped_1;
     #pragma omp atomic
         pulp->part_size_changes[part] -= vert_weight;
@@ -747,7 +740,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       }
 
       int32_t max_part = part;
-      double max_val = -1.0;
+      double max_val = 0.0;
       uint64_t num_max = 0;
       for (int32_t p = 0; p < pulp->num_parts; ++p)
       {
@@ -770,13 +763,18 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
       if (max_part != part)
       {
+        
         int64_t new_size = (int64_t)pulp->avg_size;
 
         pulp->part_size_changes[max_part] + (int64_t)vert_weight < 0 ? 
           new_size = pulp->part_sizes[max_part] + pulp->part_size_changes[max_part] + (int64_t)vert_weight :
           new_size = (int64_t)((double)pulp->part_sizes[max_part] + multiplier*(double)pulp->part_size_changes[max_part] + (double)vert_weight);
 
-        if (new_size < (int64_t)pulp->avg_size*vert_balance)
+
+        /*printf("%d %d - %lu to %d (%li + %li) from %d (%li + %li) -- %li %li\n", 
+          procid, omp_get_thread_num(), g->local_unmap[vert_index], max_part, pulp->part_sizes[max_part], pulp->part_size_changes[max_part], part, pulp->part_sizes[part], pulp->part_size_changes[part], new_size, (int64_t)(pulp->avg_size*vert_balance));*/
+
+        if (new_size < (int64_t)(pulp->avg_size*vert_balance))
         {
           ++num_swapped_2;
       #pragma omp atomic

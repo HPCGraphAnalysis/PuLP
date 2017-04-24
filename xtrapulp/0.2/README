@@ -28,8 +28,14 @@ Questions?  Contact George M. Slota    (gmslota@sandia.gov)
 ********************************************************************************
 Version info:
 
-v0.1 -- 25 July 2016
---Initial release
+v0.21 -- 23 April 2017
+--Bug fixes
+    *pulp->avg_size wasn't being set correctly in weighted case
+    *missing parantheses affected refinement calculation in pulp_v routines
+    *other minor fixes and changes 
+
+v0.2 -- 25 July 2016
+--Initial release - version number corresponds to similar functionality as PuLP
 
 
 ********************************************************************************

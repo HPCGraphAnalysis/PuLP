@@ -134,8 +134,8 @@ int* init_nonrandom(pulp_graph_t& g, int num_parts, int* parts)
 
 #pragma omp for
   for (int i = 0; i < num_verts; ++i)
-    if (parts[i] == -1)
-      parts[i] = (int)xs1024star_next(&xs) % num_parts;
+    if (parts[i] < 0)
+      parts[i] = (unsigned)xs1024star_next(&xs) % num_parts;
 } // end parallel
   
 #if OUTPUT_STEP

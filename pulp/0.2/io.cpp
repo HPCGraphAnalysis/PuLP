@@ -10,8 +10,10 @@ void read_adj(char* filename, int& n, long& m,
 
   out_array = new int[m];
   out_degree_list = new long[n+1];
-  /*if (has_vert_weights || has_edge_weights)*/ vertex_weights = new int[n];
-  /*if (has_edge_weights || has_vert_weights)*/ edge_weights = new int[m];
+  if (has_vert_weights || has_edge_weights) vertex_weights = new int[n];
+  else vertex_weights = NULL;
+  if (has_edge_weights || has_vert_weights) edge_weights = new int[m];
+  else edge_weights = NULL;
   vertex_weights_sum = 0;
 
 #pragma omp parallel for
@@ -39,11 +41,11 @@ void read_adj(char* filename, int& n, long& m,
       vertex_weights[cur_vert] = 1;
       vertex_weights_sum += vertex_weights[cur_vert];
     }
-    else
+    /*else
     {
       vertex_weights[cur_vert] = rand() % 10;
       vertex_weights_sum += vertex_weights[cur_vert];
-    }
+    }*/
     ++cur_vert;
 
     while (getline(ss, val, ' '))
@@ -58,10 +60,10 @@ void read_adj(char* filename, int& n, long& m,
       {
         edge_weights[count] = 1;
       }
-      else
+      /*else
       {
         edge_weights[count] = rand() % 10;
-      }
+      }*/
       ++count;
     }
   }
@@ -84,12 +86,10 @@ void read_graph(char* filename, int& n, long& m,
   getline(infile, line); printf("%s\n", line.c_str());
   sscanf(line.c_str(), "%d %li %d", &n, &m, &format);
   m *= 2;
-  //printf("%d %li %d\n", n, m, format);
   infile.close();
 
   bool has_vert_weights = false;
   bool has_edge_weights = false;
-
   switch(format)
   {
     case  0: break;

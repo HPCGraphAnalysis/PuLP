@@ -120,8 +120,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
   X = 1.0;
   Y = 0.25;
   // Tighten up allowable exchange for small graphs, 
-  //  and just use random initialization - BFS/Label prop might result
-  //  in zero
+  //  and just use block initialization
   if (g->n/(long unsigned)nprocs < 100) {
     Y = 1.0;
     X = 2.0;
@@ -157,9 +156,9 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
   }
   else if (!do_repart)
   {
-    if (procid == 0 && verbose) printf("\tDoing rand init stage with %d parts\n", num_parts);
+    if (procid == 0 && verbose) printf("\tDoing block init stage with %d parts\n", num_parts);
     elt2 = timer();
-    pulp_init_rand(g, comm, q, pulp);
+    pulp_init_block(g, comm, q, pulp);
     elt2 = timer() - elt2;
     if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt2);
   }

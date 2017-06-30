@@ -155,12 +155,8 @@ void pulp_init_block(
 {
   thread_queue_t tq;
   thread_comm_t tc;
-  thread_pulp_t tp;
   init_thread_queue(&tq);
   init_thread_comm(&tc);
-
-  for (int32_t p = 0; p < pulp->num_parts; ++p)
-    tp.part_weights[p] = 0.0;
 
 #pragma omp for nowait
   for (uint64_t i = 0; i < g->n_local; ++i)

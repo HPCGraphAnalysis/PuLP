@@ -272,30 +272,22 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
   return 0;
 }
 
-//Accepts multipe vectex weights, normalizes them into a scalar vertex, and passes it onto create_xtrapulp_dist_graph
+//Accepts multiple vertex weights, normalizes them into a scalar weight, and passes it onto create_xtrapulp_dist_graph function
 extern "C" int create_xtrapulp_dist_graph2(dist_graph_t* g,
 	unsigned long n_global, unsigned long m_global,
 	unsigned long n_local, unsigned long m_local,
 	unsigned long* local_adjs, unsigned long* local_offsets,
 	unsigned long* global_ids, unsigned long* vert_dist,
-	int* vertex_weights, int* edge_weights, unsigned long vertex_weights_num, int norm_option)
+	int* vertex_weights, int* edge_weights, unsigned long vertex_weights_num, int norm_option, int multiweight_option)
 {
-	//specifies the type of norm used: 1 = sum of components, 2 = 2-norm, 3 = max
-
+    //converts multiple vertex weights into a single vertex weight
 	int * norm_scalar_weights = norm_weights(n_local, vertex_weights, vertex_weights_num, norm_option);
-
-	/* For diagnosis/debug purposes. Prints out the scalar weights (one weight per vertex)
-	std::cout << "Running xtrapulp.cpp. Norm_scalar_weights: " << std::endl;
-
-	for (unsigned long i = 0; i < n_local; ++i)
-	{
-		std::cout << norm_scalar_weights[i] << " ";
-	}*/
 
 	return create_xtrapulp_dist_graph(g, n_global, m_global, n_local, m_local, local_adjs, local_offsets, global_ids, vert_dist, norm_scalar_weights, edge_weights);
 }
 
-//normalizes multiple weights to a scalar weight based on the argument norm_option.
+// normalizes multiple weights to a scalar and single weight based on the argument norm_option
+// If norm_option = 1, then 1-norm; 2, then 2 -norm; otherwise, inf-norm
 int * norm_weights(unsigned long vertex_num, int * vertex_weights, unsigned long vertex_weights_num, int norm_option)
 {
 	int * norm_vertex_weights = new int[vertex_num];
@@ -304,30 +296,16 @@ int * norm_weights(unsigned long vertex_num, int * vertex_weights, unsigned long
 	{
 		int result = 0;
 
+		// vertex_weights is a 1-D array containing all vertex weights ordered by the vertex each belongs to.
+		// vertex weights corresponding to vertex i is in [i*vertex_weights_num, (i+1)*vertex_weights_num).
 		for (unsigned long j = i * vertex_weights_num; j < (i + 1) * vertex_weights_num; ++j)
 		{
-			if (norm_option == 1)
-			{
-				result += vertex_weights[j];
-			}
-			else if (norm_option == 2)
-			{
-				result += vertex_weights[j] * vertex_weights[j];
-			}
-                        // If norm option is not 1 or 2, defaults to infinity norm
-			else
-			{
-				if (vertex_weights[j] > result)
-				{
-					result = vertex_weights[j];
-				}
-			}
+			if (norm_option == 1) result += vertex_weights[j];
+			else if (norm_option == 2) result += vertex_weights[j] * vertex_weights[j];
+			else if (vertex_weights[j] > result) result = vertex_weights[j];
 		}
 
-		if (norm_option == 2)
-		{
-			result = sqrt(result);
-		}
+		if (norm_option == 2) result = sqrt(result);
 
 		norm_vertex_weights[i] = result;
 	}

@@ -78,11 +78,11 @@ extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
   init_pulp_data(g, &pulp, num_parts);
   init_queue_data(g, &q);
   if (ppc->do_repart)
-    memcpy(pulp.local_parts, parts, g->n_local*sizeof(int32_t));   
+    memcpy(pulp.local_parts, parts, g->n_local*sizeof(int32_t));
 
   xtrapulp(g, ppc, &comm, &pulp, &q);
 
-  memcpy(parts, pulp.local_parts, g->n_local*sizeof(int32_t));  
+  memcpy(parts, pulp.local_parts, g->n_local*sizeof(int32_t));
   clear_comm_data(&comm);
   clear_pulp_data(&pulp);
   clear_queue_data(&q);
@@ -119,7 +119,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
 
   X = 1.0;
   Y = 0.25;
-  // Tighten up allowable exchange for small graphs, 
+  // Tighten up allowable exchange for small graphs,
   //  and just use block initialization
   if (g->n/(long unsigned)nprocs < 100) {
     Y = 1.0;
@@ -170,9 +170,9 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
     if (do_vert_balance && (has_vert_weights || has_edge_weights))
     {
       if (procid == 0 && verbose) printf("\t\tDoing (weighted) vert balance and refinement stage\n");
-      elt3 = timer(); 
-      pulp_v_weighted(g, comm, q, pulp, 
-        vert_outer_iter, vert_balance_iter, vert_refine_iter, 
+      elt3 = timer();
+      pulp_v_weighted(g, comm, q, pulp,
+        vert_outer_iter, vert_balance_iter, vert_refine_iter,
         vert_balance, edge_balance);
       elt3 = timer() - elt3;
       if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt3);
@@ -180,21 +180,21 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
     else if (do_vert_balance)
     {
       if (procid == 0 && verbose) printf("\t\tDoing vert balance and refinement stage\n");
-      elt3 = timer(); 
-      pulp_v(g, comm, q, pulp, 
-        vert_outer_iter, vert_balance_iter, vert_refine_iter, 
+      elt3 = timer();
+      pulp_v(g, comm, q, pulp,
+        vert_outer_iter, vert_balance_iter, vert_refine_iter,
         vert_balance, edge_balance);
       elt3 = timer() - elt3;
       if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt3);
     }
 
-    if (do_edge_balance && !do_maxcut_balance && 
+    if (do_edge_balance && !do_maxcut_balance &&
         (has_vert_weights || has_edge_weights))
     {
       if (procid == 0 && verbose) printf("\t\tDoing (weighted) edge balance and refinement stage\n");
       elt3 = timer();
-      pulp_ve_weighted(g, comm, q, pulp, 
-        vert_outer_iter, vert_balance_iter, vert_refine_iter, 
+      pulp_ve_weighted(g, comm, q, pulp,
+        vert_outer_iter, vert_balance_iter, vert_refine_iter,
         vert_balance, edge_balance);
       elt3 = timer() - elt3;
       if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt3);
@@ -203,29 +203,29 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
     {
       if (procid == 0 && verbose) printf("\t\tDoing edge balance and refinement stage\n");
       elt3 = timer();
-      pulp_ve(g, comm, q, pulp, 
-        vert_outer_iter, vert_balance_iter, vert_refine_iter, 
+      pulp_ve(g, comm, q, pulp,
+        vert_outer_iter, vert_balance_iter, vert_refine_iter,
         vert_balance, edge_balance);
       elt3 = timer() - elt3;
       if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt3);
-    }     
-    else if (do_edge_balance && do_maxcut_balance && 
+    }
+    else if (do_edge_balance && do_maxcut_balance &&
              (has_vert_weights || has_edge_weights))
     {
       if (procid == 0 && verbose) printf("\t\tDoing (weighted) maxcut balance and refinement stage\n");
       elt3 = timer();
-      pulp_vec_weighted(g, comm, q, pulp, 
-        vert_outer_iter, vert_balance_iter, vert_refine_iter, 
+      pulp_vec_weighted(g, comm, q, pulp,
+        vert_outer_iter, vert_balance_iter, vert_refine_iter,
         vert_balance, edge_balance);
       elt3 = timer() - elt3;
       if (procid == 0 && verbose) printf("done: %9.6lfs\n", elt3);
-    }   
+    }
     else if (do_edge_balance && do_maxcut_balance)
     {
       if (procid == 0 && verbose) printf("\t\tDoing maxcut balance and refinement stage\n");
       elt3 = timer();
-      pulp_vec(g, comm, q, pulp, 
-        vert_outer_iter, vert_balance_iter, vert_refine_iter, 
+      pulp_vec(g, comm, q, pulp,
+        vert_outer_iter, vert_balance_iter, vert_refine_iter,
         vert_balance, edge_balance);
       elt3 = timer() - elt3;
       if (procid == 0 && verbose) printf("done: %9.6lfs\n", elt3);
@@ -240,10 +240,10 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
   return 0;
 }
 
-extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g, 
-          unsigned long n_global, unsigned long m_global, 
+extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
+          unsigned long n_global, unsigned long m_global,
           unsigned long n_local, unsigned long m_local,
-          unsigned long* local_adjs, unsigned long* local_offsets, 
+          unsigned long* local_adjs, unsigned long* local_offsets,
           unsigned long* global_ids, unsigned long* vert_dist,
           int* vertex_weights, int* edge_weights)
 {
@@ -251,16 +251,16 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
   if (nprocs > 1)
   {
-    create_graph(g, (uint64_t)n_global, (uint64_t)m_global, 
+    create_graph(g, (uint64_t)n_global, (uint64_t)m_global,
                  (uint64_t)n_local, (uint64_t)m_local,
-                 (uint64_t*)local_offsets, (uint64_t*)local_adjs, 
+                 (uint64_t*)local_offsets, (uint64_t*)local_adjs,
                  (uint64_t*)global_ids,
                  (int32_t*)vertex_weights, (int32_t*)edge_weights);
     relabel_edges(g, vert_dist);
   }
   else
   {
-    create_graph_serial(g, (uint64_t)n_global, (uint64_t)m_global, 
+    create_graph_serial(g, (uint64_t)n_global, (uint64_t)m_global,
                  (uint64_t)n_local, (uint64_t)m_local,
                  (uint64_t*)local_offsets, (uint64_t*)local_adjs,
                  (int32_t*)vertex_weights, (int32_t*)edge_weights);
@@ -272,3 +272,64 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
   return 0;
 }
 
+//Accepts multipe vectex weights, normalizes them into a scalar vertex, and passes it onto create_xtrapulp_dist_graph
+extern "C" int create_xtrapulp_dist_graph2(dist_graph_t* g,
+	unsigned long n_global, unsigned long m_global,
+	unsigned long n_local, unsigned long m_local,
+	unsigned long* local_adjs, unsigned long* local_offsets,
+	unsigned long* global_ids, unsigned long* vert_dist,
+	int* vertex_weights, int* edge_weights, unsigned long vertex_weights_num, int norm_option)
+{
+	//specifies the type of norm used: 1 = sum of components, 2 = 2-norm, 3 = max
+
+	int * norm_scalar_weights = norm_weights(n_local, vertex_weights, vertex_weights_num, norm_option);
+
+	/* For diagnosis/debug purposes. Prints out the scalar weights (one weight per vertex)
+	std::cout << "Running xtrapulp.cpp. Norm_scalar_weights: " << std::endl;
+
+	for (unsigned long i = 0; i < n_local; ++i)
+	{
+		std::cout << norm_scalar_weights[i] << " ";
+	}*/
+
+	return create_xtrapulp_dist_graph(g, n_global, m_global, n_local, m_local, local_adjs, local_offsets, global_ids, vert_dist, norm_scalar_weights, edge_weights);
+}
+
+//normalizes multiple weights to a scalar weight based on the argument norm_option.
+int * norm_weights(unsigned long vertex_num, int * vertex_weights, unsigned long vertex_weights_num, int norm_option)
+{
+	int * norm_vertex_weights = new int[vertex_num];
+
+	for (unsigned long int i = 0; i < vertex_num; ++i)
+	{
+		int result = 0;
+
+		for (unsigned long j = i * vertex_weights_num; j < (i + 1) * vertex_weights_num; ++j)
+		{
+			if (norm_option == 1)
+			{
+				result += vertex_weights[j];
+			}
+			else if (norm_option == 2)
+			{
+				result += vertex_weights[j] * vertex_weights[j];
+			}
+                        // If norm option is not 1 or 2, defaults to infinity norm
+			else
+			{
+				if (vertex_weights[j] > result)
+				{
+					result = vertex_weights[j];
+				}
+			}
+		}
+
+		if (norm_option == 2)
+		{
+			result = sqrt(result);
+		}
+
+		norm_vertex_weights[i] = result;
+	}
+	return norm_vertex_weights;
+}

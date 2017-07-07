@@ -292,22 +292,27 @@ int * norm_weights(unsigned long vertex_num, int * vertex_weights, unsigned long
 {
 	int * norm_vertex_weights = new int[vertex_num];
 
-	for (unsigned long int i = 0; i < vertex_num; ++i)
+	std::cout << "Normalized weights: ";
+	for (unsigned long i = 0; i < vertex_num; ++i)
 	{
-		int result = 0;
+	    //unsigned long long is used since the norm-2 calculations involve very huge numbers
+		unsigned long long result = 0;
 
 		// vertex_weights is a 1-D array containing all vertex weights ordered by the vertex each belongs to.
 		// vertex weights corresponding to vertex i is in [i*vertex_weights_num, (i+1)*vertex_weights_num).
 		for (unsigned long j = i * vertex_weights_num; j < (i + 1) * vertex_weights_num; ++j)
 		{
 			if (norm_option == 1) result += vertex_weights[j];
-			else if (norm_option == 2) result += vertex_weights[j] * vertex_weights[j];
+			else if (norm_option == 2) result += (unsigned long long) vertex_weights[j]*vertex_weights[j];
 			else if (vertex_weights[j] > result) result = vertex_weights[j];
 		}
+		std::cout << std::endl;
 
 		if (norm_option == 2) result = sqrt(result);
 
 		norm_vertex_weights[i] = result;
+		std::cout << norm_vertex_weights[i] << " ";
 	}
+	std::cout << std::endl;
 	return norm_vertex_weights;
 }

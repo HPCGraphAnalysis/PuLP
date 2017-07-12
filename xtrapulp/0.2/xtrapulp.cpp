@@ -68,8 +68,9 @@ int seed;
 bool verbose, debug, verify;
 float X,Y;
 
+//TODO: Integrate vertex_weights_num to dist_graph_t* and mvtxwgt_method to pulp_part_control_t?
 extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
-          int* parts, int num_parts, int mvtxwgt_method)
+          int* parts, int num_parts, int vertex_weights_num, int mvtxwgt_method)
 {
   //setup
   mpi_data_t comm;
@@ -82,7 +83,7 @@ extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
     memcpy(pulp.local_parts, parts, g->n_local*sizeof(int32_t));
 
   //The meat
-  xtrapulp(g, ppc, &comm, &pulp, &q, mvtxwgt_method);
+  xtrapulp(g, ppc, &comm, &pulp, &q, vertex_weights_num, mvtxwgt_method);
 
   //cleanup
   memcpy(parts, pulp.local_parts, g->n_local*sizeof(int32_t));
@@ -94,7 +95,7 @@ extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
 }
 
 extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
-          mpi_data_t* comm, pulp_data_t* pulp, queue_data_t* q, int vertex_wgts_num, int mvtxwgt_method)
+          mpi_data_t* comm, pulp_data_t* pulp, queue_data_t* q, int vertex_weights_num, int mvtxwgt_method)
 {
   double vert_balance = ppc->vert_balance;
   //double vert_balance_lower = 0.25;
@@ -102,7 +103,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
   double do_label_prop = ppc->do_lp_init;
   double do_nonrandom_init = ppc->do_bfs_init;
   verbose = ppc->verbose_output;
-  debug = false;
+  debug = true;
   bool do_vert_balance = true;
   bool do_edge_balance = ppc->do_edge_balance;
   bool do_maxcut_balance = ppc->do_maxcut_balance;
@@ -133,7 +134,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
 
   double elt, elt2, elt3;
   elt = timer();
-  
+
   //graph labeling initialization; Algorithm 2
   if (do_label_prop && (has_vert_weights || has_edge_weights))
   {
@@ -180,19 +181,19 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
       elt3 = timer();
       
       //TODO: WRITE STUFF HERE
-      if(mvtxwgt_method == 1 && vertex_wgts_num > 1)
+      if(mvtxwgt_method == 1 && vertex_weights_num > 1)
       {
-        for(int i = 0; i < vertex_wgts_num; ++i)
+        std::cout << std::endl << std::endl << "MULTIWEIGHT STRATEGY CALLED" << std::endl << std::endl;
+        for(int i = 0; i < vertex_weights_num; ++i)
         {
-
+          pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, vertex_weights_num, i);
         }
-
       }
       else
       {
         pulp_v_weighted(g, comm, q, pulp,
           vert_outer_iter, vert_balance_iter, vert_refine_iter,
-          vert_balance, edge_balance);
+          vert_balance, edge_balance, vertex_weights_num, 0);
       }
       elt3 = timer() - elt3;
       if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt3);

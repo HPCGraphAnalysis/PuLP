@@ -102,7 +102,7 @@ struct dist_graph_t {
 #define out_weights(g, n) &g->edge_weights[g->out_degree_list[n]]
 
 extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
-          int* parts, int num_parts, int mvtxwgt_method = 0);
+          int* parts, int num_parts, int vertex_weights_num = 1, int mvtxwgt_method = 0);
 
 extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
           mpi_data_t* comm, pulp_data_t* pulp, queue_data_t* q, int vertex_weights_num = 1, int mvtwgt_method = 0);

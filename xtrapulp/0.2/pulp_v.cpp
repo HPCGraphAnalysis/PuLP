@@ -473,14 +473,11 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
   return 0;
 }
 
-
-
-
 int pulp_v_weighted(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
             pulp_data_t *pulp,            
             uint64_t outer_iter, 
             uint64_t balance_iter, uint64_t refine_iter, 
-            double vert_balance, double edge_balance)
+            double vert_balance, double edge_balance, int vertex_weights_num, int index)
 { 
   if (debug) { printf("Task %d pulp_v_weighted() start\n", procid); }
   double elt = 0.0;
@@ -488,6 +485,22 @@ int pulp_v_weighted(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
     MPI_Barrier(MPI_COMM_WORLD);
     elt = omp_get_wtime();
   }
+
+  int jump = 0;
+
+  std::cout << "This process has: " << g->n_local << " vertices, each with " << vertex_weights_num << " weights. The weights this graph has is: " << std::endl;
+  for(int i = 0; i < vertex_weights_num * (g->n_local); ++i)
+  {
+    std::cout << g->vertex_weights[i] << " ";
+    jump += 1;
+
+    if(jump == vertex_weights_num)
+    {
+      std::cout << std::endl;
+      jump = 0;
+    }
+  }
+  std::cout << std::endl;
 
   bool has_vwgts = (g->vertex_weights != NULL);
   bool has_ewgts = (g->edge_weights != NULL);
@@ -545,7 +558,8 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
     }
 
 #pragma omp for schedule(guided) reduction(+:num_swapped_1) nowait
-    for (uint64_t vert_index = 0; vert_index < g->n_local; ++vert_index)
+    //# of weights is equal to # of vertices. This assumption comes from vertices having only one wights. 
+    for (uint64_t vert_index = 0; vert_index < (g->n_local); ++vert_index)
     {
       int32_t part = pulp->local_parts[vert_index];
       int32_t vert_weight = 1;

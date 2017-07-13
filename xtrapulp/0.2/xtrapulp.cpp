@@ -103,7 +103,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
   double do_label_prop = ppc->do_lp_init;
   double do_nonrandom_init = ppc->do_bfs_init;
   verbose = ppc->verbose_output;
-  debug = true;
+  debug = false;
   bool do_vert_balance = true;
   bool do_edge_balance = ppc->do_edge_balance;
   bool do_maxcut_balance = ppc->do_maxcut_balance;
@@ -183,17 +183,18 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
       //TODO: WRITE STUFF HERE
       if(mvtxwgt_method == 1 && vertex_weights_num > 1)
       {
-        std::cout << std::endl << std::endl << "MULTIWEIGHT STRATEGY CALLED" << std::endl << std::endl;
+        //std::cout << std::endl << std::endl << "MULTIWEIGHT STRATEGY CALLED" << std::endl << std::endl;
         for(int i = 0; i < vertex_weights_num; ++i)
         {
           pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, vertex_weights_num, i);
         }
+
+        //g->vertex_weights = norm_weights(g->n_local, g->vertex_weights, vertex_weights_num, 2);
+        //pulp_vec_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance);
       }
       else
       {
-        pulp_v_weighted(g, comm, q, pulp,
-          vert_outer_iter, vert_balance_iter, vert_refine_iter,
-          vert_balance, edge_balance, vertex_weights_num, 0);
+        pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, vertex_weights_num, 0);
       }
       elt3 = timer() - elt3;
       if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt3);
@@ -334,7 +335,7 @@ int * norm_weights(unsigned long vertex_num, int * vertex_weights, unsigned long
 {
 	int * norm_vertex_weights = new int[vertex_num];
 
-	std::cout << "Normalized weights: ";
+	//std::cout << "Normalized weights: ";
 	for (unsigned long i = 0; i < vertex_num; ++i)
 	{
 	    //unsigned long long is used since the norm-2 calculations involve very huge numbers
@@ -351,8 +352,8 @@ int * norm_weights(unsigned long vertex_num, int * vertex_weights, unsigned long
 		if (norm_option == 2) result = sqrt(result);
 
 		norm_vertex_weights[i] = result;
-		std::cout << norm_vertex_weights[i] << " ";
+		//std::cout << norm_vertex_weights[i] << " ";
 	}
-	std::cout << std::endl;
+	//std::cout << std::endl;
 	return norm_vertex_weights;
 }

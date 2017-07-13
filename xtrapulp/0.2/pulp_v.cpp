@@ -486,21 +486,22 @@ int pulp_v_weighted(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
     elt = omp_get_wtime();
   }
 
+  // prints out whatever vertices and weights each process has
   int jump = 0;
-
-  std::cout << "This process has: " << g->n_local << " vertices, each with " << vertex_weights_num << " weights. The weights this graph has is: " << std::endl;
+  /*std::cout << "This process has: " << g->n_local << " vertices, each with " << vertex_weights_num << " weights. The weights this graph has is: " << std::endl;
   for(int i = 0; i < vertex_weights_num * (g->n_local); ++i)
   {
     std::cout << g->vertex_weights[i] << " ";
     jump += 1;
 
+    //if all weights of vertex are printed, jump to a new line and print the next set of weights
     if(jump == vertex_weights_num)
     {
       std::cout << std::endl;
       jump = 0;
     }
   }
-  std::cout << std::endl;
+  std::cout << std::endl;*/
 
   bool has_vwgts = (g->vertex_weights != NULL);
   bool has_ewgts = (g->edge_weights != NULL);
@@ -546,37 +547,48 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
   num_swapped_1 = 0;
 }
 
+//Start of the WHILE loop in algorithm 4
   for (uint64_t cur_bal_iter = 0; cur_bal_iter < balance_iter; ++cur_bal_iter)
   {
+    //the first FOR loop that sets the urgency of each part's imbalance 
     for (int32_t p = 0; p < pulp->num_parts; ++p)
     {
+      //std::cout << "part #: " << p << " tp.part_weights[p]: " << tp.part_weights[p] << " pulp->avg_size: " << pulp->avg_size << " pulp->part_sizes: " << pulp->part_sizes[p] << " tp.partweights[p]: " << tp.part_weights[p] << std::endl;
       tp.part_weights[p] = 
           vert_balance * pulp->avg_size / 
           ((double)pulp->part_sizes[p] + multiplier*(double)pulp->part_size_changes[p]) - 1.0;
+      
       if (tp.part_weights[p] < 0.0)
         tp.part_weights[p] = 0.0;
     }
 
 #pragma omp for schedule(guided) reduction(+:num_swapped_1) nowait
-    //# of weights is equal to # of vertices. This assumption comes from vertices having only one wights. 
+    //the second FOR loop: iterate through each vertex referenced as vert_index
     for (uint64_t vert_index = 0; vert_index < (g->n_local); ++vert_index)
     {
       int32_t part = pulp->local_parts[vert_index];
       int32_t vert_weight = 1;
-      if (has_vwgts) vert_weight = g->vertex_weights[vert_index];
+      
+      if (has_vwgts) vert_weight = g->vertex_weights[vert_index * vertex_weights_num +index];
+      //std::cout << "Vertex Weight used for index " << vert_index << ": " << vert_weight << std::endl;
 
+      //resets the count of each partition's size 
       for (int32_t p = 0; p < pulp->num_parts; ++p)
         tp.part_counts[p] = 0.0;
 
+      //get neighborhood and degree info of the vertex being iterated on
       uint64_t out_degree = out_degree(g, vert_index);
       uint64_t* outs = out_vertices(g, vert_index);
       int32_t* weights = out_weights(g, vert_index);
+
+      //third FOR loop (inner): for any partition that has at least one vertex adjacent to vert_index, update it 
       for (uint64_t j = 0; j < out_degree; ++j)
       {
         uint64_t out_index = outs[j];
         int32_t part_out = pulp->local_parts[out_index];
         double weight_out = 1.0;
         if (has_ewgts) weight_out = (double)weights[j];
+
         if (out_index >= g->n_local)
         {
           tp.part_counts[part_out] += 
@@ -592,8 +604,10 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       int32_t max_part = part;
       double max_val = 0.0;
       uint64_t num_max = 0;
+      //4th FOR loop (inner): for each partition, approximate its size...TODO: Clarify this
       for (int32_t p = 0; p < pulp->num_parts; ++p)
       {
+        //update 
         if (tp.part_weights[p] > 0.0)
           tp.part_counts[p] *= tp.part_weights[p];
         else
@@ -690,6 +704,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 } // end single
 
 
+//5th FOR loop: Vertices are exchange among partitions
 #pragma omp for
     for (uint64_t i = 0; i < comm->total_recv; ++i)
     {
@@ -736,7 +751,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
     {
       int32_t part = pulp->local_parts[vert_index];
       int32_t vert_weight = 1;
-      if (has_vwgts) vert_weight = g->vertex_weights[vert_index];
+      if (has_vwgts) vert_weight = g->vertex_weights[vert_index * vertex_weights_num +index];
 
       for (int32_t p = 0; p < pulp->num_parts; ++p)
         tp.part_counts[p] = 0.0;

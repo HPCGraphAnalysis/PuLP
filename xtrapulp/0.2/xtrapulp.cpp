@@ -68,9 +68,11 @@ int seed;
 bool verbose, debug, verify;
 float X,Y;
 
+//TODO: Integrate vertex_weights_num to dist_graph_t* and mvtxwgt_method to pulp_part_control_t?
 extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
-          int* parts, int num_parts)
+          int* parts, int num_parts, int vertex_weights_num, int mvtxwgt_method)
 {
+  //setup
   mpi_data_t comm;
   pulp_data_t pulp;
   queue_data_t q;
@@ -80,8 +82,10 @@ extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
   if (ppc->do_repart)
     memcpy(pulp.local_parts, parts, g->n_local*sizeof(int32_t));
 
-  xtrapulp(g, ppc, &comm, &pulp, &q);
+  //The meat
+  xtrapulp(g, ppc, &comm, &pulp, &q, vertex_weights_num, mvtxwgt_method);
 
+  //cleanup
   memcpy(parts, pulp.local_parts, g->n_local*sizeof(int32_t));
   clear_comm_data(&comm);
   clear_pulp_data(&pulp);
@@ -91,7 +95,7 @@ extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
 }
 
 extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
-          mpi_data_t* comm, pulp_data_t* pulp, queue_data_t* q)
+          mpi_data_t* comm, pulp_data_t* pulp, queue_data_t* q, int vertex_weights_num, int mvtxwgt_method)
 {
   double vert_balance = ppc->vert_balance;
   //double vert_balance_lower = 0.25;
@@ -130,6 +134,8 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
 
   double elt, elt2, elt3;
   elt = timer();
+
+  //graph labeling initialization; Algorithm 2
   if (do_label_prop && (has_vert_weights || has_edge_weights))
   {
     if (procid == 0 && verbose) printf("\tDoing (weighted) lp init stage with %d parts\n", num_parts);
@@ -163,20 +169,37 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
     if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt2);
   }
 
+  //Vertex Balancing + Refinement; Algorithm 4
   if (procid == 0 && verbose) printf("\tBeginning vertex (and edge) refinement\n");
   for (int boi = 0; boi < balance_outer_iter; ++boi)
   {
     elt2 = timer();
+    //if we want to balance vertices given vertex weights or edge weights, then run pulp_v_weighted
     if (do_vert_balance && (has_vert_weights || has_edge_weights))
     {
       if (procid == 0 && verbose) printf("\t\tDoing (weighted) vert balance and refinement stage\n");
       elt3 = timer();
-      pulp_v_weighted(g, comm, q, pulp,
-        vert_outer_iter, vert_balance_iter, vert_refine_iter,
-        vert_balance, edge_balance);
+      
+      //TODO: WRITE STUFF HERE
+      if(mvtxwgt_method == 1 && vertex_weights_num > 1)
+      {
+        //std::cout << std::endl << std::endl << "MULTIWEIGHT STRATEGY CALLED" << std::endl << std::endl;
+        for(int i = 0; i < vertex_weights_num; ++i)
+        {
+          pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, vertex_weights_num, i);
+        }
+
+        //g->vertex_weights = norm_weights(g->n_local, g->vertex_weights, vertex_weights_num, 2);
+        //pulp_vec_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance);
+      }
+      else
+      {
+        pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, vertex_weights_num, 0);
+      }
       elt3 = timer() - elt3;
       if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt3);
     }
+    //else just run pulp_v
     else if (do_vert_balance)
     {
       if (procid == 0 && verbose) printf("\t\tDoing vert balance and refinement stage\n");
@@ -188,6 +211,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
       if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt3);
     }
 
+    //if edges have weights, then run pulp_ve_weighted to balance the edges and refine
     if (do_edge_balance && !do_maxcut_balance &&
         (has_vert_weights || has_edge_weights))
     {
@@ -199,6 +223,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
       elt3 = timer() - elt3;
       if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt3);
     }
+    // else run pulp_ve to balance the edges and refine
     else if (do_edge_balance && !do_maxcut_balance)
     {
       if (procid == 0 && verbose) printf("\t\tDoing edge balance and refinement stage\n");
@@ -245,8 +270,15 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
           unsigned long n_local, unsigned long m_local,
           unsigned long* local_adjs, unsigned long* local_offsets,
           unsigned long* global_ids, unsigned long* vert_dist,
-          int* vertex_weights, int* edge_weights)
+          int* vertex_weights, int* edge_weights, unsigned long vertex_weights_num, int norm_option, int multiweight_option)
 {
+  //In xtrapulp.h, the default parameters are: vertex_weights_num = 1, norm_option = 2, and multiweight_option = 0
+  if(multiweight_option == 0)
+  {
+    //converts multiple weights per vertex into a single weight per vertex
+    vertex_weights = norm_weights(n_local, vertex_weights, vertex_weights_num, norm_option);
+  }
+
   MPI_Comm_rank(MPI_COMM_WORLD, &procid);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
   if (nprocs > 1)
@@ -272,6 +304,7 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
   return 0;
 }
 
+/*
 //Accepts multiple vertex weights, normalizes them into a scalar weight, and passes it onto create_xtrapulp_dist_graph function
 extern "C" int create_xtrapulp_dist_graph2(dist_graph_t* g,
 	unsigned long n_global, unsigned long m_global,
@@ -280,11 +313,21 @@ extern "C" int create_xtrapulp_dist_graph2(dist_graph_t* g,
 	unsigned long* global_ids, unsigned long* vert_dist,
 	int* vertex_weights, int* edge_weights, unsigned long vertex_weights_num, int norm_option, int multiweight_option)
 {
-    //converts multiple vertex weights into a single vertex weight
-	int * norm_scalar_weights = norm_weights(n_local, vertex_weights, vertex_weights_num, norm_option);
+  //Strategy: normalize multiple vertex weights into single vertex weights
+  if(multiweight_option == 0)
+  {
+    //converts multiple weights per vertex into a single weight per vertex
+    int * norm_scalar_weights = norm_weights(n_local, vertex_weights, vertex_weights_num, norm_option);
 
-	return create_xtrapulp_dist_graph(g, n_global, m_global, n_local, m_local, local_adjs, local_offsets, global_ids, vert_dist, norm_scalar_weights, edge_weights);
-}
+    //calls the single weight vertex Xtrapulp
+    return create_xtrapulp_dist_graph(g, n_global, m_global, n_local, m_local, local_adjs, local_offsets, global_ids, vert_dist, norm_scalar_weights, edge_weights);
+  }
+  //Strategy: iterate through each vertex weight component to balance vertex weights; refine to minimze edge cuts after
+  else
+  {
+    return 
+  }
+}*/
 
 // normalizes multiple weights to a scalar and single weight based on the argument norm_option
 // If norm_option = 1, then 1-norm; 2, then 2 -norm; otherwise, inf-norm
@@ -292,7 +335,7 @@ int * norm_weights(unsigned long vertex_num, int * vertex_weights, unsigned long
 {
 	int * norm_vertex_weights = new int[vertex_num];
 
-	std::cout << "Normalized weights: ";
+	//std::cout << "Normalized weights: ";
 	for (unsigned long i = 0; i < vertex_num; ++i)
 	{
 	    //unsigned long long is used since the norm-2 calculations involve very huge numbers
@@ -306,13 +349,11 @@ int * norm_weights(unsigned long vertex_num, int * vertex_weights, unsigned long
 			else if (norm_option == 2) result += (unsigned long long) vertex_weights[j]*vertex_weights[j];
 			else if (vertex_weights[j] > result) result = vertex_weights[j];
 		}
-		std::cout << std::endl;
-
 		if (norm_option == 2) result = sqrt(result);
 
 		norm_vertex_weights[i] = result;
-		std::cout << norm_vertex_weights[i] << " ";
+		//std::cout << norm_vertex_weights[i] << " ";
 	}
-	std::cout << std::endl;
+	//std::cout << std::endl;
 	return norm_vertex_weights;
 }

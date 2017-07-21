@@ -201,7 +201,7 @@ int create_graph(dist_graph_t* g,
           uint64_t n_local, uint64_t m_local,
           uint64_t* local_offsets, uint64_t* local_adjs, 
           uint64_t* global_ids,
-          int32_t* vertex_weights, int32_t* edge_weights)
+          int32_t* vertex_weights, int32_t* edge_weights, uint64_t vertex_weights_num)
 { 
   if (debug) { printf("Task %d create_graph() start\n", procid); }
 
@@ -216,6 +216,7 @@ int create_graph(dist_graph_t* g,
   g->m = m_global;
   g->m_local = m_local;
   g->vertex_weights = NULL;
+  g->vertex_weights_num = vertex_weights_num;
   g->edge_weights = NULL;
   g->map = (struct fast_map*)malloc(sizeof(struct fast_map));
 
@@ -256,7 +257,7 @@ int create_graph_serial(dist_graph_t* g,
           uint64_t n_global, uint64_t m_global, 
           uint64_t n_local, uint64_t m_local,
           uint64_t* local_offsets, uint64_t* local_adjs,
-          int32_t* vertex_weights, int32_t* edge_weights)
+          int32_t* vertex_weights, int32_t* edge_weights, uint64_t vertex_weights_num)
 {
   if (debug) { printf("Task %d create_graph_serial() start\n", procid); }
   double elt = 0.0;
@@ -273,6 +274,7 @@ int create_graph_serial(dist_graph_t* g,
   g->m_local = m_local;
   g->n_total = g->n_local;
   g->vertex_weights = NULL;
+  g->vertex_weights_num = vertex_weights_num;
   g->edge_weights = NULL;
   g->map = (struct fast_map*)malloc(sizeof(struct fast_map));
 

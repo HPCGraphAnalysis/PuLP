@@ -486,9 +486,10 @@ int pulp_v_weighted(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
     elt = omp_get_wtime();
   }
 
-  /* prints out vertex weights for each process
-  int jump = 0;
+  
+  /* prints out whatever vertices and weights each process has
   std::cout << "This process has: " << g->n_local << " vertices, each with " << g->vertex_weights_num << " weights. The weights this graph has is: " << std::endl;
+  int jump = 0;
   for(int i = 0; i < g->vertex_weights_num * (g->n_local); ++i)
   {
     std::cout << g->vertex_weights[i] << " ";
@@ -501,7 +502,8 @@ int pulp_v_weighted(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
       jump = 0;
     }
   }
-  std::cout << std::endl;*/
+  std::cout << std::endl;
+  */
 
   bool has_vwgts = (g->vertex_weights != NULL);
   bool has_ewgts = (g->edge_weights != NULL);

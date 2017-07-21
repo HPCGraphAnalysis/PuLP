@@ -181,12 +181,12 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
       elt3 = timer();
       
       //TODO: WRITE STUFF HERE
-      if(mvtxwgt_method == 1 && vertex_weights_num > 1)
+      if(mvtxwgt_method == 1 && g->vertex_weights_num > 1)
       {
         //std::cout << std::endl << std::endl << "MULTIWEIGHT STRATEGY CALLED" << std::endl << std::endl;
-        for(int wc = 0; wc < vertex_weights_num; ++wc)
+        for(int wc = 0; wc < g->vertex_weights_num; ++wc)
         {
-          pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, vertex_weights_num, wc);
+          pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, wc);
         }
 
         //g->vertex_weights = norm_weights(g->n_local, g->vertex_weights, vertex_weights_num, 2);
@@ -194,7 +194,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
       }
       else
       {
-        pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, vertex_weights_num, 0);
+        pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance);
       }
       elt3 = timer() - elt3;
       if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt3);

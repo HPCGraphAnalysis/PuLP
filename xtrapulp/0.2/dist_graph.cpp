@@ -225,9 +225,20 @@ int create_graph(dist_graph_t* g,
   if (vertex_weights != NULL) 
   {
     g->vertex_weights = vertex_weights;
-    g->vertex_weights_sum = 0;
-    for (uint64_t i = 0; i < g->n_local; ++i)
-      g->vertex_weights_sum += g->vertex_weights[i];
+
+	for (int wc = 0; wc < g->vertex_weights_num; ++wc)
+	{
+		g->vertex_weights_sum[wc] = 0;
+	}
+
+	for (uint64_t i = 0; i < g->n_local; ++i)
+	{
+		for (int wc = 0; wc < g->vertex_weights_num; ++wc)
+		{
+			g->vertex_weights_sum[wc] += g->vertex_weights[i*(g->vertex_weights_num) + wc];
+		}
+	}
+
     MPI_Allreduce(MPI_IN_PLACE, &g->vertex_weights_sum, 1, 
                   MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
   }
@@ -283,9 +294,19 @@ int create_graph_serial(dist_graph_t* g,
   if (vertex_weights != NULL) 
   {
     g->vertex_weights = vertex_weights;
-    g->vertex_weights_sum = 0;
-    for (uint64_t i = 0; i < g->n; ++i)
-      g->vertex_weights_sum += g->vertex_weights[i];
+
+	for (int wc = 0; wc < g->vertex_weights_num; ++wc)
+	{
+		g->vertex_weights_sum[wc] = 0;
+	}
+
+	for (uint64_t i = 0; i < g->n_local; ++i)
+	{
+		for (int wc = 0; wc < g->vertex_weights_num; ++wc)
+		{
+			g->vertex_weights_sum[wc] += g->vertex_weights[i*(g->vertex_weights_num) + wc];
+		}
+	}
   }
   else g->vertex_weights = NULL;
   if (edge_weights != NULL) g->edge_weights = edge_weights;

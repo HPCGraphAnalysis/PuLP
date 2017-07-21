@@ -1110,39 +1110,59 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
         int64_t diff_max_part = (int64_t)weights_sum - 2*max_count;
         int64_t diff_cut = part_count - max_count;  
 
-        pulp->part_size_changes[max_part] + (int64_t)vert_weight < 0 ? 
-          new_size = pulp->part_sizes[max_part] + pulp->part_size_changes[max_part] + (int64_t)vert_weight :
-          new_size = (int64_t)((double)pulp->part_sizes[max_part] + multiplier*(double)pulp->part_size_changes[max_part] + (double)vert_weight);
+		bool change_allowed = true;
 
-        pulp->part_edge_size_changes[max_part] + out_degree < 0 ?
-          new_edge_size = pulp->part_edge_sizes[max_part] + pulp->part_edge_size_changes[max_part] + out_degree :
-          new_edge_size = (int64_t)((double)pulp->part_edge_sizes[max_part] + multiplier*(double)pulp->part_edge_size_changes[max_part] + (double)(out_degree));
+		for (int i = 0; i < g->vertex_weights_num; ++i)
+		{
+			pulp->part_size_changes[max_part] + (int64_t)vert_weight < 0 ?
+				new_size = pulp->part_sizes[max_part] + pulp->part_size_changes[max_part] + (int64_t)vert_weight :
+				new_size = (int64_t)((double)pulp->part_sizes[max_part] + multiplier*(double)pulp->part_size_changes[max_part] + (double)vert_weight);
+			if (new_size >= (int64_t)(pulp->avg_size * vert_balance)) change_allowed = false;
+		}
 
-        pulp->part_cut_size_changes[part] < 0 ?
-          new_cut_size = pulp->part_cut_sizes[part] + pulp->part_cut_size_changes[part] + diff_part :
-          new_cut_size = (int64_t)((double)pulp->part_cut_sizes[part] + multiplier*(double)pulp->part_cut_size_changes[part] + (double)diff_part);
-             
-        pulp->part_cut_size_changes[max_part] < 0 ?
-          new_cut_size = pulp->part_cut_sizes[max_part] + pulp->part_cut_size_changes[max_part] + diff_max_part :
-          new_cut_size = (int64_t)((double)pulp->part_cut_sizes[max_part] + multiplier*(double)pulp->part_cut_size_changes[max_part] + (double)diff_max_part);
+		if (change_allowed)
+		{
+			pulp->part_edge_size_changes[max_part] + out_degree < 0 ?
+				new_edge_size = pulp->part_edge_sizes[max_part] + pulp->part_edge_size_changes[max_part] + out_degree :
+				new_edge_size = (int64_t)((double)pulp->part_edge_sizes[max_part] + multiplier*(double)pulp->part_edge_size_changes[max_part] + (double)(out_degree));
+			if (new_edge_size >= (int64_t)(pulp->avg_edge_size * pulp->max_e)) change_allowed = false;
+		}
 
+		if (change_allowed)
+		{
+			pulp->part_cut_size_changes[part] < 0 ?
+				new_cut_size = pulp->part_cut_sizes[part] + pulp->part_cut_size_changes[part] + diff_part :
+				new_cut_size = (int64_t)((double)pulp->part_cut_sizes[part] + multiplier*(double)pulp->part_cut_size_changes[part] + (double)diff_part);
+			if (new_cut_size >= (int64_t)(avg_cut_size*pulp->max_c)) change_allowed = false;
+		}
 
-        if (new_size < (int64_t)(pulp->avg_size*vert_balance) &&
-          new_edge_size < (int64_t)(pulp->avg_edge_size*pulp->max_e) &&
-          new_cut_size < (int64_t)(avg_cut_size*pulp->max_c) &&
-          new_max_cut_size < (int64_t)(avg_cut_size*pulp->max_c) )
-        {
+		if (change_allowed)
+		{
+			pulp->part_cut_size_changes[max_part] < 0 ?
+				new_cut_size = pulp->part_cut_sizes[max_part] + pulp->part_cut_size_changes[max_part] + diff_max_part :
+				new_cut_size = (int64_t)((double)pulp->part_cut_sizes[max_part] + multiplier*(double)pulp->part_cut_size_changes[max_part] + (double)diff_max_part);
+			if (new_max_cut_size >= (int64_t)(avg_cut_size * pulp->max_c)) change_allowed = false;
+		}
+
+		if(change_allowed)
+		{
           ++num_swapped_2;
+
+		  for (int wc = 0; wc < g->vertex_weights_num; ++wc)
+		  {
+#pragma omp atomic
+			  pulp->part_size_changes[part] -= vert_weight;
+#pragma omp atomic
+			  pulp->part_size_changes[max_part] += vert_weight;
+		  }
+
       #pragma omp atomic
           pulp->cut_size_change += diff_cut;
       #pragma omp atomic
           pulp->part_cut_size_changes[part] += diff_part;
       #pragma omp atomic
           pulp->part_cut_size_changes[max_part] += diff_max_part;
-      #pragma omp atomic
-          pulp->part_size_changes[part] -= vert_weight;
-      #pragma omp atomic
-          pulp->part_size_changes[max_part] += vert_weight;
+
       #pragma omp atomic
           pulp->part_edge_size_changes[part] -= (int64_t)out_degree;
       #pragma omp atomic

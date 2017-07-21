@@ -70,7 +70,7 @@ float X,Y;
 
 //TODO: Integrate vertex_weights_num to dist_graph_t* and mvtxwgt_method to pulp_part_control_t?
 extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
-          int* parts, int num_parts, int vertex_weights_num, int mvtxwgt_method)
+          int* parts, int num_parts, int mvtxwgt_method)
 {
   //setup
   mpi_data_t comm;
@@ -83,7 +83,7 @@ extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
     memcpy(pulp.local_parts, parts, g->n_local*sizeof(int32_t));
 
   //The meat
-  xtrapulp(g, ppc, &comm, &pulp, &q, vertex_weights_num, mvtxwgt_method);
+  xtrapulp(g, ppc, &comm, &pulp, &q, mvtxwgt_method);
 
   //cleanup
   memcpy(parts, pulp.local_parts, g->n_local*sizeof(int32_t));
@@ -95,7 +95,7 @@ extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
 }
 
 extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
-          mpi_data_t* comm, pulp_data_t* pulp, queue_data_t* q, int vertex_weights_num, int mvtxwgt_method)
+          mpi_data_t* comm, pulp_data_t* pulp, queue_data_t* q, int mvtxwgt_method)
 {
   double vert_balance = ppc->vert_balance;
   //double vert_balance_lower = 0.25;
@@ -181,12 +181,12 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
       elt3 = timer();
       
       //TODO: WRITE STUFF HERE
-      if(mvtxwgt_method == 1 && vertex_weights_num > 1)
+      if(mvtxwgt_method == 1 && g->vertex_weights_num > 1)
       {
         //std::cout << std::endl << std::endl << "MULTIWEIGHT STRATEGY CALLED" << std::endl << std::endl;
-        for(int i = 0; i < vertex_weights_num; ++i)
+        for(int wc = 0; wc < g->vertex_weights_num; ++wc)
         {
-          pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, vertex_weights_num, i);
+          pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, wc);
         }
 
         //g->vertex_weights = norm_weights(g->n_local, g->vertex_weights, vertex_weights_num, 2);
@@ -194,7 +194,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
       }
       else
       {
-        pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, vertex_weights_num, 0);
+        pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance);
       }
       elt3 = timer() - elt3;
       if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt3);
@@ -287,7 +287,7 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
                  (uint64_t)n_local, (uint64_t)m_local,
                  (uint64_t*)local_offsets, (uint64_t*)local_adjs,
                  (uint64_t*)global_ids,
-                 (int32_t*)vertex_weights, (int32_t*)edge_weights);
+                 (int32_t*)vertex_weights, (int32_t*)edge_weights, (uint64_t) vertex_weights_num);
     relabel_edges(g, vert_dist);
   }
   else
@@ -295,7 +295,7 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
     create_graph_serial(g, (uint64_t)n_global, (uint64_t)m_global,
                  (uint64_t)n_local, (uint64_t)m_local,
                  (uint64_t*)local_offsets, (uint64_t*)local_adjs,
-                 (int32_t*)vertex_weights, (int32_t*)edge_weights);
+                 (int32_t*)vertex_weights, (int32_t*)edge_weights, (uint64_t) vertex_weights_num);
   }
 
   get_ghost_degrees(g);
@@ -303,31 +303,6 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
 
   return 0;
 }
-
-/*
-//Accepts multiple vertex weights, normalizes them into a scalar weight, and passes it onto create_xtrapulp_dist_graph function
-extern "C" int create_xtrapulp_dist_graph2(dist_graph_t* g,
-	unsigned long n_global, unsigned long m_global,
-	unsigned long n_local, unsigned long m_local,
-	unsigned long* local_adjs, unsigned long* local_offsets,
-	unsigned long* global_ids, unsigned long* vert_dist,
-	int* vertex_weights, int* edge_weights, unsigned long vertex_weights_num, int norm_option, int multiweight_option)
-{
-  //Strategy: normalize multiple vertex weights into single vertex weights
-  if(multiweight_option == 0)
-  {
-    //converts multiple weights per vertex into a single weight per vertex
-    int * norm_scalar_weights = norm_weights(n_local, vertex_weights, vertex_weights_num, norm_option);
-
-    //calls the single weight vertex Xtrapulp
-    return create_xtrapulp_dist_graph(g, n_global, m_global, n_local, m_local, local_adjs, local_offsets, global_ids, vert_dist, norm_scalar_weights, edge_weights);
-  }
-  //Strategy: iterate through each vertex weight component to balance vertex weights; refine to minimze edge cuts after
-  else
-  {
-    return 
-  }
-}*/
 
 // normalizes multiple weights to a scalar and single weight based on the argument norm_option
 // If norm_option = 1, then 1-norm; 2, then 2 -norm; otherwise, inf-norm

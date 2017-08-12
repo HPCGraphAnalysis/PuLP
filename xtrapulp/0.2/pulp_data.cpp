@@ -78,7 +78,7 @@ void clear_thread_pulp(thread_pulp_t* tp)
   //if (debug) printf("Task %d clear_thread_pulp() success\n", procid);
 }
 
-void init_pulp_data(dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts, uint64_t wc)
+void init_pulp_data(dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts)
 {
   if (debug) printf("Task %d init_pulp_data() start\n", procid); 
 
@@ -86,7 +86,7 @@ void init_pulp_data(dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts, uint6
   if (g->edge_weights == NULL && g->vertex_weights == NULL)
     pulp->avg_size = (double)g->n / (double)pulp->num_parts;
   else
-    pulp->avg_size = (double)g->vertex_weights_sum[wc] / (double)pulp->num_parts;
+    pulp->avg_size = (double)g->vertex_weights_sum / (double)pulp->num_parts;
   pulp->avg_edge_size = (double)g->m*2 / (double)pulp->num_parts;
   pulp->avg_cut_size = 0.0;
   pulp->max_v = 0.0;
@@ -194,7 +194,7 @@ void update_pulp_data(dist_graph_t* g, pulp_data_t* pulp)
   }
 }
 
-void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp, uint64_t wc)
+void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp)
 {
   bool has_vwgts = (g->vertex_weights != NULL);
   bool has_ewgts = (g->edge_weights != NULL);
@@ -215,7 +215,7 @@ void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp, uint64_t wc)
     uint64_t vert_index = i;
     int32_t part = pulp->local_parts[vert_index];
     if (has_vwgts) 
-      pulp->part_sizes[part] += g->vertex_weights[vert_index*(g->vertex_weights_num) + wc];
+      pulp->part_sizes[part] += g->vertex_weights[vert_index];
     else 
       ++pulp->part_sizes[part];
 

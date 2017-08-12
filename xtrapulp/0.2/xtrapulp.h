@@ -91,7 +91,6 @@ struct dist_graph_t {
   int32_t* vertex_weights;
   int32_t* edge_weights;
   uint64_t vertex_weights_sum;
-  uint64_t vertex_weights_num;
 
   uint64_t* local_unmap;
   uint64_t* ghost_unmap;
@@ -102,20 +101,19 @@ struct dist_graph_t {
 #define out_vertices(g, n) &g->out_edges[g->out_degree_list[n]]
 #define out_weights(g, n) &g->edge_weights[g->out_degree_list[n]]
 
-extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
-          int* parts, int num_parts, int mvtxwgt_method = 0);
+
+extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc, 
+          int* parts, int num_parts);
 
 extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
-          mpi_data_t* comm, pulp_data_t* pulp, queue_data_t* q, int mvtwgt_method = 0);
+          mpi_data_t* comm, pulp_data_t* pulp, queue_data_t* q);
 
-extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
-          unsigned long n_global, unsigned long m_global,
+extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g, 
+          unsigned long n_global, unsigned long m_global, 
           unsigned long n_local, unsigned long m_local,
-          unsigned long* local_adjs, unsigned long* local_offsets,
+          unsigned long* local_adjs, unsigned long* local_offsets,  
           unsigned long* global_ids, unsigned long* vert_dist,
-          int* vertex_weights, int* edge_weights, unsigned long vertex_weights_num = 1, int norm_option = 2, int multiweight_option = 0);
-
-int * norm_weights(unsigned long vertex_num, int * vertex_weights, unsigned long vertex_weights_num, int norm_option);
+          int* vertex_weights, int* edge_weights);
 
 double timer();
 

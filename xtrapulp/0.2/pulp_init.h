@@ -67,10 +67,9 @@ void pulp_init_label_prop_weighted(dist_graph_t* g,
   mpi_data_t* comm, queue_data_t* q, pulp_data_t* pulp,
   uint64_t lp_num_iter);
 
-/*
 void pulp_init_label_prop(dist_graph_t* g, 
   mpi_data_t* comm, queue_data_t* q, pulp_data_t* pulp,
   uint64_t lp_num_iter);
-*/
+
 
 #endif

@@ -59,7 +59,7 @@
 extern int procid, nprocs;
 extern bool verbose, debug, verify;
 
-/*
+
 int part_eval(dist_graph_t* g, pulp_data_t* pulp)
 {
   for (int32_t i = 0; i < pulp->num_parts; ++i)
@@ -137,7 +137,7 @@ int part_eval(dist_graph_t* g, pulp_data_t* pulp)
     }
   }
 
-  pulp->max_v = (double)max_v_size / ((double)g->n / (double)pulp->num_parts);
+  pulp->max_v[0] = (double)max_v_size / ((double)g->n / (double)pulp->num_parts);
   pulp->max_e = (double)max_e_size / ((double)g->m*2.0 / (double)pulp->num_parts);
   pulp->max_c = (double)max_c_size / ((double)pulp->cut_size / (double)pulp->num_parts);
   pulp->max_cut = max_c_size;
@@ -147,7 +147,7 @@ int part_eval(dist_graph_t* g, pulp_data_t* pulp)
     printf("---------------------------------------------------------\n");
     printf("EdgeCut: %li, MaxPartCut: %li\nVertexBalance: %2.3lf (%d, %li), EdgeBalance: %2.3lf (%d, %li)\nCutBalance: %2.3lf (%d, %li), GhostBalance: %2.3lf (%li)\n", 
       pulp->cut_size, pulp->max_cut,
-      pulp->max_v, max_v_part, max_v_size,
+      pulp->max_v[0], max_v_part, max_v_size,
       pulp->max_e, max_e_part, max_e_size,
       pulp->max_c, max_c_part, max_c_size,
       ghost_balance, max_ghost);
@@ -159,9 +159,9 @@ int part_eval(dist_graph_t* g, pulp_data_t* pulp)
   }
 
   return 0;
-}*/
+}
 
-/*
+
 int part_eval(dist_graph_t* g, int32_t* parts, int32_t num_parts)
 {
   pulp_data_t pulp;
@@ -243,7 +243,7 @@ int part_eval(dist_graph_t* g, int32_t* parts, int32_t num_parts)
     }
   }
 
-  pulp.max_v = (double)max_v_size / ((double)g->n / (double)pulp.num_parts);
+  pulp.max_v[0] = (double)max_v_size / ((double)g->n / (double)pulp.num_parts);
   pulp.max_e = (double)max_e_size / ((double)g->m*2.0 / (double)pulp.num_parts);
   pulp.max_c = (double)max_c_size / ((double)pulp.cut_size / (double)pulp.num_parts);
   pulp.max_cut = max_c_size;
@@ -252,7 +252,7 @@ int part_eval(dist_graph_t* g, int32_t* parts, int32_t num_parts)
   {
     printf("EVAL ec: %li, vb: %2.3lf (%d, %li), eb: %2.3lf (%d, %li), cb: %2.3lf (%d, %li), gb: %2.3lf (%li)\n", 
       pulp.cut_size, 
-      pulp.max_v, max_v_part, max_v_size,
+      pulp.max_v[0], max_v_part, max_v_size,
       pulp.max_e, max_e_part, max_e_size,
       pulp.max_c, max_c_part, max_c_size,
       ghost_balance, max_ghost);
@@ -265,7 +265,7 @@ int part_eval(dist_graph_t* g, int32_t* parts, int32_t num_parts)
   clear_pulp_data(&pulp);
 
   return 0;
-} */
+} 
 
 
 int part_eval_weighted(dist_graph_t* g, pulp_data_t* pulp)

@@ -61,6 +61,7 @@
 #include "dist_graph.h"
 #include "pulp_init.h"
 #include "pulp_v.h"
+#include "pulp_ve.h"
 #include "pulp_vec.h"
 
 int procid, nprocs;
@@ -107,8 +108,8 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
   verbose = ppc->verbose_output;
   debug = false;
   bool do_vert_balance = true;
-  //bool do_edge_balance = ppc->do_edge_balance;
-  //bool do_maxcut_balance = ppc->do_maxcut_balance;
+  bool do_edge_balance = ppc->do_edge_balance;
+  bool do_maxcut_balance = ppc->do_maxcut_balance;
   bool do_repart = ppc->do_repart;
   bool has_vert_weights = (g->vertex_weights != NULL);
   bool has_edge_weights = (g->edge_weights != NULL);
@@ -146,7 +147,6 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
     elt2 = timer() - elt2;
     if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt2);
   }
-  /*
   else if (do_label_prop)
   {
     if (procid == 0 && verbose) printf("\tDoing lp init stage with %d parts\n", num_parts);
@@ -154,7 +154,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
     pulp_init_label_prop(g, comm, q, pulp, label_prop_iter);
     elt2 = timer() - elt2;
     if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt2);
-  }*/
+  }
   else if (do_nonrandom_init)
   {
     if (procid == 0 && verbose) printf("\tDoing bfs init stage with %d parts\n", num_parts);
@@ -199,15 +199,84 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
       {
         pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, 0);
       }
+      
       elt3 = timer() - elt3;
-      if (procid == 0 && verbose) printf("done: %9.6lf(s)\n", elt3);
+      if (procid == 0 && verbose)
+        printf("done: %9.6lf(s)\n", elt3);
+    }
+    else if (do_vert_balance)
+    {
+      if (procid == 0 && verbose)
+        printf("\t\tDoing vert balance and refinement stage\n");
+      elt3 = timer();
+      pulp_v(g, comm, q, pulp,
+             vert_outer_iter, vert_balance_iter, vert_refine_iter,
+             vert_balance, edge_balance);
+      elt3 = timer() - elt3;
+      if (procid == 0 && verbose)
+        printf("done: %9.6lf(s)\n", elt3);
     }
 
+    if (do_edge_balance && !do_maxcut_balance &&
+        (has_vert_weights || has_edge_weights))
+    {
+      if (procid == 0 && verbose)
+        printf("\t\tDoing (weighted) edge balance and refinement stage\n");
+      elt3 = timer();
+      pulp_ve_weighted(g, comm, q, pulp,
+                       vert_outer_iter, vert_balance_iter, vert_refine_iter,
+                       vert_balance, edge_balance, 0);
+      elt3 = timer() - elt3;
+      if (procid == 0 && verbose)
+        printf("done: %9.6lf(s)\n", elt3);
+    }
+    else if (do_edge_balance && !do_maxcut_balance)
+    {
+      if (procid == 0 && verbose)
+        printf("\t\tDoing edge balance and refinement stage\n");
+      elt3 = timer();
+      pulp_ve(g, comm, q, pulp,
+              vert_outer_iter, vert_balance_iter, vert_refine_iter,
+              vert_balance, edge_balance);
+      elt3 = timer() - elt3;
+      if (procid == 0 && verbose)
+        printf("done: %9.6lf(s)\n", elt3);
+    }
+    /*
+    else if (do_edge_balance && do_maxcut_balance &&
+             (has_vert_weights || has_edge_weights))
+    {
+      if (procid == 0 && verbose)
+        printf("\t\tDoing (weighted) maxcut balance and refinement stage\n");
+      elt3 = timer();
+      pulp_vec_weighted(g, comm, q, pulp,
+                        vert_outer_iter, vert_balance_iter, vert_refine_iter,
+                        vert_balance, edge_balance);
+      elt3 = timer() - elt3;
+      if (procid == 0 && verbose)
+        printf("done: %9.6lfs\n", elt3);
+    }
+    else if (do_edge_balance && do_maxcut_balance)
+    {
+      if (procid == 0 && verbose)
+        printf("\t\tDoing maxcut balance and refinement stage\n");
+      elt3 = timer();
+      pulp_vec(g, comm, q, pulp,
+               vert_outer_iter, vert_balance_iter, vert_refine_iter,
+               vert_balance, edge_balance);
+      elt3 = timer() - elt3;
+      if (procid == 0 && verbose)
+        printf("done: %9.6lfs\n", elt3);
+    }
+    */
+
     elt2 = timer() - elt2;
-    if (procid == 0 && verbose) printf("\tFinished outer loop iter %d: %9.6lf(s)\n", (boi+1), elt2);
+    if (procid == 0 && verbose)
+      printf("\tFinished outer loop iter %d: %9.6lf(s)\n", (boi + 1), elt2);
   }
   elt = timer() - elt;
-  if (procid == 0 && verbose) printf("Partitioning finished: %9.6lf(s)\n", elt);
+  if (procid == 0 && verbose)
+    printf("Partitioning finished: %9.6lf(s)\n", elt);
 
   return 0;
 }
@@ -221,10 +290,12 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
           unsigned long vertex_weights_num, int norm_option, int multiweight_option)
 {
   //In xtrapulp.h, the default parameters are: vertex_weights_num = 1, norm_option = 2, and multiweight_option = 0
+
   if(multiweight_option == 0)
   {
     //converts multiple weights per vertex into a single weight per vertex
     vertex_weights = norm_weights(n_local, vertex_weights, vertex_weights_num, norm_option);
+    vertex_weights_num = 1;    
   }
 
   MPI_Comm_rank(MPI_COMM_WORLD, &procid);
@@ -264,7 +335,7 @@ extern "C" int * norm_weights(unsigned long n_local, int * vertex_weights, unsig
 	for (int vtx_idx = 0; vtx_idx < (int) n_local; ++vtx_idx)
 	{
 		//unsigned long long is used since the norm-2 calculations involve very huge numbers
-		unsigned long long result = 0;
+		int32_t result = 0;
 
 		// vertex_weights is a 1-D array containing all vertex weights first ordered by the vertex each belongs to, second by order of weight components
 		// vertex_weights[vtx_idx * vertex_weights_num + wc] corresponds to the vertex weight for vertex vtx_idx, weight component wc

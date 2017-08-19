@@ -734,11 +734,21 @@ void pulp_init_label_prop_weighted(dist_graph_t* g,
   for (int32_t i = 0; i < nprocs; ++i)
     comm->sendcounts_temp[i] = 0;
 
+  
 	double * min_size = new double[g->vertex_weights_num];
-	for (uint32_t wc = 0; wc < g->vertex_weights_num; ++wc)
-	{
-		min_size[wc] = pulp->avg_size[wc] * MIN_SIZE;
-	}
+  
+  if(has_vwgts)
+  {
+    for (uint32_t wc = 0; wc < g->vertex_weights_num; ++wc)
+    {
+      min_size[wc] = pulp->avg_size[wc] * MIN_SIZE;
+    }
+  }
+  else
+  {
+    min_size[0] = pulp->avg_size[0] * MIN_SIZE;
+  }
+
 
   double multiplier = (double) nprocs;
 
@@ -816,18 +826,14 @@ for (uint64_t cur_iter = 0; cur_iter < lp_num_iter; ++cur_iter)
     int32_t part = pulp->local_parts[vert_index];
     int32_t * vert_weight = new int32_t[g->vertex_weights_num];
 
-		for (uint32_t wc = 0; wc < g->vertex_weights_num; ++wc)
-		{
-			if (has_ewgts)
-			{
-				vert_weight[wc] = g->vertex_weights[vert_index * g->vertex_weights_num + wc];
-			}
-			else
-			{
-				vert_weight[wc] = 1;
-			}
-		}
-
+    if(has_vwgts)
+    {
+      for (uint32_t wc = 0; wc < g->vertex_weights_num; ++wc)
+      {
+        vert_weight[wc] = 
+          g->vertex_weights[vert_index * g->vertex_weights_num + wc];
+      }
+    }
 
 		//variable "weights" and "part_counts" only involve edge weights, not vertex weights
     for (int32_t p = 0; p < pulp->num_parts; ++p)
@@ -871,7 +877,7 @@ for (uint64_t cur_iter = 0; cur_iter < lp_num_iter; ++cur_iter)
     {
 			int64_t * new_size = new int64_t[g->vertex_weights_num];
 
-			int count = 0;
+			uint32_t count = 0;
 			for (uint32_t wc = 0; wc < g->vertex_weights_num; ++wc)
 			{
 				new_size[wc] = pulp->avg_size[wc];
@@ -977,6 +983,8 @@ for (uint64_t cur_iter = 0; cur_iter < lp_num_iter; ++cur_iter)
   clear_thread_comm(&tc);
 } // end parallel
 
+  delete [] min_size;
+
   //update_pulp_data_weighted(g, pulp);
 
   if (debug) { printf("Task %d pulp_init_label_prop_weighted() success\n", procid); }
@@ -984,8 +992,6 @@ for (uint64_t cur_iter = 0; cur_iter < lp_num_iter; ++cur_iter)
 
 
 
-
-/*
 void pulp_init_label_prop(dist_graph_t* g, 
   mpi_data_t* comm, queue_data_t* q, pulp_data_t* pulp,
   uint64_t lp_num_iter) 
@@ -1108,7 +1114,7 @@ for (uint64_t cur_iter = 0; cur_iter < lp_num_iter; ++cur_iter)
 
     if (max_part != part)
     {
-      int64_t new_size = (int64_t)pulp->avg_size;
+      int64_t new_size = (int64_t)pulp->avg_size[0];
 
       pulp->part_size_changes[part] - 1 > 0 ?
         new_size = pulp->part_sizes[part] + pulp->part_size_changes[part] - 1 :
@@ -1202,4 +1208,3 @@ for (uint64_t cur_iter = 0; cur_iter < lp_num_iter; ++cur_iter)
 
   if (debug) { printf("Task %d pulp_init_label_prop() success\n", procid); }
 }
-*/

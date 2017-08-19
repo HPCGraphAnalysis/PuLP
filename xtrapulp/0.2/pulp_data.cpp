@@ -175,6 +175,67 @@ for (int32_t p = 0; p < pulp->num_parts; ++p)
   if (debug) printf("Task %d init_pulp_data() success\n", procid);
 }
 
+void update_pulp_data(dist_graph_t *g, pulp_data_t *pulp)
+{
+  for (int32_t p = 0; p < pulp->num_parts; ++p)
+  {
+    pulp->part_sizes[p] = 0;
+    pulp->part_edge_sizes[p] = 0;
+    pulp->part_cut_sizes[p] = 0;
+    pulp->part_size_changes[p] = 0;
+    pulp->part_edge_size_changes[p] = 0;
+    pulp->part_cut_size_changes[p] = 0;
+  }
+  pulp->cut_size = 0;
+
+  for (uint64_t i = 0; i < g->n_local; ++i)
+  {
+    uint64_t vert_index = i;
+    int32_t part = pulp->local_parts[vert_index];
+    ++pulp->part_sizes[part];
+
+    uint64_t out_degree = out_degree(g, vert_index);
+    uint64_t *outs = out_vertices(g, vert_index);
+    pulp->part_edge_sizes[part] += (int64_t)out_degree;
+    for (uint64_t j = 0; j < out_degree; ++j)
+    {
+      uint64_t out_index = outs[j];
+      int32_t part_out = pulp->local_parts[out_index];
+      if (part_out != part)
+      {
+        ++pulp->part_cut_sizes[part];
+        ++pulp->cut_size;
+      }
+    }
+  }
+
+  MPI_Allreduce(MPI_IN_PLACE, pulp->part_sizes, pulp->num_parts,
+                MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, pulp->part_edge_sizes, pulp->num_parts,
+                MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, pulp->part_cut_sizes, pulp->num_parts,
+                MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &pulp->cut_size, 1,
+                MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+  pulp->cut_size /= 2;
+  pulp->avg_cut_size = (double)pulp->cut_size / (double)pulp->num_parts;
+
+  pulp->max_v[0] = 0;
+  pulp->max_e = 0;
+  pulp->max_c = 0;
+  pulp->max_cut = 0;
+  for (int32_t p = 0; p < pulp->num_parts; ++p)
+  {
+    if ((double)pulp->part_sizes[p] / pulp->avg_size[0] > pulp->max_v[0])
+      pulp->max_v[0] = (double)pulp->part_sizes[p] / pulp->avg_size[0];
+    if ((double)pulp->part_edge_sizes[p] / pulp->avg_edge_size > pulp->max_e)
+      pulp->max_e = (double)pulp->part_edge_sizes[p] / pulp->avg_edge_size;
+    if ((double)pulp->part_cut_sizes[p] / pulp->avg_cut_size > pulp->max_c)
+      pulp->max_c = (double)pulp->part_cut_sizes[p] / pulp->avg_cut_size;
+    if (pulp->part_cut_sizes[p] > pulp->max_cut)
+      pulp->max_cut = pulp->part_cut_sizes[p];
+  }
+}
 
 //What Esco did: modified several variables involving vertex_weights (pulp->part_sizes, pulp->part_size_changes,...)
 //to iterate through each weight component. 

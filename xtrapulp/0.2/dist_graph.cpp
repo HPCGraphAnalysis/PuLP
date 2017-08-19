@@ -201,7 +201,8 @@ int create_graph(dist_graph_t* g,
           uint64_t n_local, uint64_t m_local,
           uint64_t* local_offsets, uint64_t* local_adjs, 
           uint64_t* global_ids,
-          int32_t* vertex_weights, int32_t* edge_weights, uint64_t vertex_weights_num)
+          int32_t* vertex_weights, int32_t* edge_weights, 
+          uint32_t* vertex_weights_sum, uint64_t vertex_weights_num)
 { 
   if (debug) { printf("Task %d create_graph() start\n", procid); }
 
@@ -217,6 +218,8 @@ int create_graph(dist_graph_t* g,
   g->m_local = m_local;
   g->vertex_weights = NULL;
   g->vertex_weights_num = vertex_weights_num;
+  g->vertex_weights_sum = vertex_weights_sum;
+  
   g->edge_weights = NULL;
   g->map = (struct fast_map*)malloc(sizeof(struct fast_map));
 
@@ -226,18 +229,18 @@ int create_graph(dist_graph_t* g,
   {
     g->vertex_weights = vertex_weights;
 
-	for (int wc = 0; wc < g->vertex_weights_num; ++wc)
-	{
-		g->vertex_weights_sum[wc] = 0;
-	}
+    for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
+    {
+      g->vertex_weights_sum[wc] = 0;
+    }
 
-	for (uint64_t i = 0; i < g->n_local; ++i)
-	{
-		for (int wc = 0; wc < g->vertex_weights_num; ++wc)
-		{
-			g->vertex_weights_sum[wc] += g->vertex_weights[i*(g->vertex_weights_num) + wc];
-		}
-	}
+    for (uint64_t i = 0; i < g->n_local; ++i)
+    {
+      for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
+      {
+        g->vertex_weights_sum[wc] += g->vertex_weights[i*(g->vertex_weights_num) + wc];
+      }
+    }
 
     MPI_Allreduce(MPI_IN_PLACE, &g->vertex_weights_sum, 1, 
                   MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
@@ -268,7 +271,8 @@ int create_graph_serial(dist_graph_t* g,
           uint64_t n_global, uint64_t m_global, 
           uint64_t n_local, uint64_t m_local,
           uint64_t* local_offsets, uint64_t* local_adjs,
-          int32_t* vertex_weights, int32_t* edge_weights, uint64_t vertex_weights_num)
+          int32_t* vertex_weights, int32_t* edge_weights, 
+          uint32_t* vertex_weights_sum, uint64_t vertex_weights_num)
 {
   if (debug) { printf("Task %d create_graph_serial() start\n", procid); }
   double elt = 0.0;
@@ -286,27 +290,28 @@ int create_graph_serial(dist_graph_t* g,
   g->n_total = g->n_local;
   g->vertex_weights = NULL;
   g->vertex_weights_num = vertex_weights_num;
+  g->vertex_weights_sum = vertex_weights_sum;
   g->edge_weights = NULL;
   g->map = (struct fast_map*)malloc(sizeof(struct fast_map));
-
   g->out_edges = local_adjs;
   g->out_degree_list = local_offsets;
+
   if (vertex_weights != NULL) 
   {
     g->vertex_weights = vertex_weights;
 
-	for (int wc = 0; wc < g->vertex_weights_num; ++wc)
-	{
-		g->vertex_weights_sum[wc] = 0;
-	}
+    for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
+    {
+      g->vertex_weights_sum[wc] = 0;
+    }
 
-	for (uint64_t i = 0; i < g->n_local; ++i)
-	{
-		for (int wc = 0; wc < g->vertex_weights_num; ++wc)
-		{
-			g->vertex_weights_sum[wc] += g->vertex_weights[i*(g->vertex_weights_num) + wc];
-		}
-	}
+    for (uint64_t i = 0; i < g->n_local; ++i)
+    {
+      for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
+      {
+        g->vertex_weights_sum[wc] += g->vertex_weights[i*(g->vertex_weights_num) + wc];
+      }
+    }
   }
   else g->vertex_weights = NULL;
   if (edge_weights != NULL) g->edge_weights = edge_weights;
@@ -335,6 +340,9 @@ int create_graph_serial(dist_graph_t* g,
 int clear_graph(dist_graph_t *g)
 {
   if (debug) { printf("Task %d clear_graph() start\n", procid); }
+
+  delete[] g->vertex_weights;
+  delete[] g->vertex_weights_sum;
 
   free(g->out_edges);
   free(g->out_degree_list);
@@ -443,9 +451,6 @@ int relabel_edges(dist_graph_t *g, uint64_t* vert_dist)
   if (debug) { printf("Task %d relabel_edges() success\n", procid); }
   return 0;
 }
-
-
-
 
 
 int get_max_degree_vert(dist_graph_t *g)

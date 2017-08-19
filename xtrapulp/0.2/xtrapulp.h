@@ -90,7 +90,7 @@ struct dist_graph_t {
 
   int32_t* vertex_weights;
   int32_t* edge_weights;
-  uint64_t vertex_weights_sum;
+  uint32_t* vertex_weights_sum;
   uint64_t vertex_weights_num;
 
   uint64_t* local_unmap;
@@ -113,10 +113,12 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
           unsigned long n_local, unsigned long m_local,
           unsigned long* local_adjs, unsigned long* local_offsets,
           unsigned long* global_ids, unsigned long* vert_dist,
-          int* vertex_weights, int* edge_weights, unsigned long vertex_weights_num = 1, int norm_option = 2, int multiweight_option = 0);
+          int* vertex_weights, int* edge_weights, double* vertex_weights_sum,
+          unsigned long vertex_weights_num = 1, int norm_option = 2, int multiweight_option = 0);
 
-int * norm_weights(unsigned long vertex_num, int * vertex_weights, unsigned long vertex_weights_num, int norm_option);
+extern "C" int * norm_weights(unsigned long _local, int * vertex_weights, unsigned long vertex_weights_num, int norm_option);
 
 double timer();
 
 #endif
+

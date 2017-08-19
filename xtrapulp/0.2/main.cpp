@@ -56,6 +56,7 @@
 #include "comms.h"
 #include "io_pp.h"
 #include "pulp_util.h"
+#include "pulp_data.h"
 #include "util.h"
 
 
@@ -287,6 +288,7 @@ int main(int argc, char **argv)
     if (procid == 0) printf("Partitioning Finished\n");
     if (procid == 0) printf("XtraPuLP Time: %9.6lf (s)\n", omp_get_wtime() - elt);
 
+    /*
     if (output_quality)
     {
       part_eval(&g, &pulp);
@@ -294,7 +296,7 @@ int main(int argc, char **argv)
       //  printf("&&& XtraPuLP, %s, %d, %2.3lf, %2.3lf, %li, %li\n", 
       //   graphname, num_parts, pulp.max_v, pulp.max_e, 
       //    pulp.cut_size, pulp.max_cut);
-    }
+    }*/
 
     char temp_out[1024]; temp_out[0] = '\0';
     strcat(temp_out, parts_out);

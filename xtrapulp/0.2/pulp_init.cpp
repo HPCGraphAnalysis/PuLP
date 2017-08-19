@@ -223,7 +223,7 @@ void pulp_init_block(
 }
 
 
-void pulp_init_bfs_pull(
+void pulp_init_bfs(
   dist_graph_t* g, mpi_data_t* comm, queue_data_t* q, pulp_data_t* pulp)
 {
 
@@ -734,7 +734,12 @@ void pulp_init_label_prop_weighted(dist_graph_t* g,
   for (int32_t i = 0; i < nprocs; ++i)
     comm->sendcounts_temp[i] = 0;
 
-  double min_size = pulp->avg_size * MIN_SIZE;
+	double * min_size = new double[g->vertex_weights_num];
+	for (uint32_t wc = 0; wc < g->vertex_weights_num; ++wc)
+	{
+		min_size[wc] = pulp->avg_size[wc] * MIN_SIZE;
+	}
+
   double multiplier = (double) nprocs;
 
 #pragma omp parallel 
@@ -809,9 +814,22 @@ for (uint64_t cur_iter = 0; cur_iter < lp_num_iter; ++cur_iter)
   for (uint64_t vert_index = 0; vert_index < g->n_local; ++vert_index)
   {
     int32_t part = pulp->local_parts[vert_index];
-    int32_t vert_weight = 1;
-    if (has_vwgts) vert_weight = g->vertex_weights[vert_index];
+    int32_t * vert_weight = new int32_t[g->vertex_weights_num];
 
+		for (uint32_t wc = 0; wc < g->vertex_weights_num; ++wc)
+		{
+			if (has_ewgts)
+			{
+				vert_weight[wc] = g->vertex_weights[vert_index * g->vertex_weights_num + wc];
+			}
+			else
+			{
+				vert_weight[wc] = 1;
+			}
+		}
+
+
+		//variable "weights" and "part_counts" only involve edge weights, not vertex weights
     for (int32_t p = 0; p < pulp->num_parts; ++p)
       tp.part_counts[p] = 0.0;
 
@@ -851,20 +869,35 @@ for (uint64_t cur_iter = 0; cur_iter < lp_num_iter; ++cur_iter)
 
     if (max_part != part)
     {
-      int64_t new_size = (int64_t)pulp->avg_size;
+			int64_t * new_size = new int64_t[g->vertex_weights_num];
 
-      pulp->part_size_changes[part] - (int64_t)vert_weight > 0 ?
-        new_size = pulp->part_sizes[part] + pulp->part_size_changes[part] - vert_weight :
-        new_size = (int64_t)((double)pulp->part_sizes[part] + multiplier * pulp->part_size_changes[part] - vert_weight);
+			int count = 0;
+			for (uint32_t wc = 0; wc < g->vertex_weights_num; ++wc)
+			{
+				new_size[wc] = pulp->avg_size[wc];
+				pulp->part_size_changes[part * g->vertex_weights_num + wc] - (int64_t)vert_weight[wc] > 0 ?
+					new_size[wc] = pulp->part_sizes[part * g->vertex_weights_num + wc] + pulp->part_size_changes[part * g->vertex_weights_num + wc] - vert_weight[wc] :
+					new_size[wc] = (int64_t)((double) pulp->part_sizes[part * g->vertex_weights_num + wc] + multiplier * pulp->part_cut_size_changes[part * g->vertex_weights_num + wc] - vert_weight[wc]);
 
-      if (new_size > (int64_t)min_size)
-      {
-    #pragma omp atomic
-        pulp->part_size_changes[part] -= vert_weight;
-    #pragma omp atomic
-        pulp->part_size_changes[max_part] += vert_weight;
+				if (new_size[wc] > (int64_t)min_size[wc])
+				{
+					count++;
+				}
+			}
+      
+			//If over half of weight components in new_size is greater than the corresponding weight components in min_size
+			//then make the change: move vertex from it's current partition "part" to new partition "max_part"
+			if (count > (g->vertex_weights_num / 2))
+			{
+				for (uint32_t wc = 0; wc < g->vertex_weights_num; ++wc)
+				{
+#pragma omp atomic
+					pulp->part_size_changes[part*g->vertex_weights_num + wc] -= vert_weight[wc];
+#pragma omp atomic
+					pulp->part_size_changes[max_part*g->vertex_weights_num + wc] += vert_weight[wc];
+				}
 
-        pulp->local_parts[vert_index] = max_part;
+				pulp->local_parts[vert_index] = max_part;
         add_vid_to_send(&tq, q, vert_index);
       }
     }
@@ -925,12 +958,15 @@ for (uint64_t cur_iter = 0; cur_iter < lp_num_iter; ++cur_iter)
 {
   clear_recvbuf_vid_data(comm);
 
-  MPI_Allreduce(MPI_IN_PLACE, pulp->part_size_changes, pulp->num_parts, 
+  MPI_Allreduce(MPI_IN_PLACE, pulp->part_size_changes, pulp->num_parts * g->vertex_weights_num, 
   MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
   for (int32_t p = 0; p < pulp->num_parts; ++p)
   {
-    pulp->part_sizes[p] += pulp->part_size_changes[p];
-    pulp->part_size_changes[p] = 0;
+		for (uint32_t wc = 0; wc < g->vertex_weights_num; ++wc)
+		{
+			pulp->part_sizes[p * g->vertex_weights_num + wc] += pulp->part_size_changes[p * g->vertex_weights_num +wc];
+			pulp->part_size_changes[p * g->vertex_weights_num + wc] = 0;
+		}
   }
 }
 
@@ -949,6 +985,7 @@ for (uint64_t cur_iter = 0; cur_iter < lp_num_iter; ++cur_iter)
 
 
 
+/*
 void pulp_init_label_prop(dist_graph_t* g, 
   mpi_data_t* comm, queue_data_t* q, pulp_data_t* pulp,
   uint64_t lp_num_iter) 
@@ -959,7 +996,7 @@ void pulp_init_label_prop(dist_graph_t* g,
   for (int32_t i = 0; i < nprocs; ++i)
     comm->sendcounts_temp[i] = 0;
 
-  double min_size = pulp->avg_size * MIN_SIZE;
+  double min_size = pulp->avg_size[0] * MIN_SIZE;
   double multiplier = (double) nprocs;
 
 #pragma omp parallel 
@@ -1165,3 +1202,4 @@ for (uint64_t cur_iter = 0; cur_iter < lp_num_iter; ++cur_iter)
 
   if (debug) { printf("Task %d pulp_init_label_prop() success\n", procid); }
 }
+*/

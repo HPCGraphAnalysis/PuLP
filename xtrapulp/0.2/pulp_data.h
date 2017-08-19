@@ -50,13 +50,13 @@
 
 struct pulp_data_t {
 
-  double avg_size;
+  double * avg_size;
   double avg_edge_size;
   double avg_cut_size;
-  double max_v;
+  double * max_v;
   double max_e;
   double max_c;
-  double running_max_v;
+  double * running_max_v;
   double running_max_e;
   double running_max_c;
   double weight_exponent_e;
@@ -83,15 +83,16 @@ struct thread_pulp_t {
   double* part_cut_weights;
 };
 
-void init_thread_pulp(thread_pulp_t* tp, pulp_data_t* pulp);
+
+void init_thread_pulp(thread_pulp_t* tp, pulp_data_t* pulp, int vertex_weights_num = 0);
 
 void clear_thread_pulp(thread_pulp_t* tp);
 
-void init_pulp_data(dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts, uint64_t wc = 0);
+void init_pulp_data(dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts);
 
-void update_pulp_data(dist_graph_t* g, pulp_data_t* pulp);
+//void update_pulp_data(dist_graph_t* g, pulp_data_t* pulp);
 
-void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp, uint64_t wc = 0);
+void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp);
 
 void clear_pulp_data(pulp_data_t* pulp);
 

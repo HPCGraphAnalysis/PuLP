@@ -189,9 +189,9 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
         {
           pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, wc);
         }
-        //std::cout << "Starting pulp_vec_weighted" << std::endl;
-        //pulp_vec_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter,   vert_refine_iter, vert_balance, edge_balance);
-        //std::cout << "Completed pulp_vec_weighted" << std::endl;
+        std::cout << "Starting pulp_vec_weighted" << std::endl;
+        pulp_vec_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter,   vert_refine_iter, vert_balance, edge_balance);
+        std::cout << "Completed pulp_vec_weighted" << std::endl;
       }
       else
       {

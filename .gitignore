@@ -2,3 +2,5 @@
 *.o
 *.a
 *.a
+xtrapulp/0.2/xtrapulp
+*.a

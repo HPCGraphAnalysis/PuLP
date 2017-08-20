@@ -84,7 +84,7 @@ struct thread_pulp_t {
 };
 
 
-void init_thread_pulp(thread_pulp_t* tp, pulp_data_t* pulp, int vertex_weights_num = 0);
+void init_thread_pulp(thread_pulp_t* tp, pulp_data_t* pulp, int vertex_weights_num);
 
 void clear_thread_pulp(thread_pulp_t* tp);
 

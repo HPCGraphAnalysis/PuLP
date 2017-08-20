@@ -110,7 +110,7 @@ int pulp_v(dist_graph_t *g, mpi_data_t *comm, queue_data_t *q,
     thread_pulp_t tp;
     init_thread_queue(&tq);
     init_thread_comm(&tc);
-    init_thread_pulp(&tp, pulp);
+    init_thread_pulp(&tp, pulp, 1);
     xs1024star_t xs;
     xs1024star_seed((uint64_t)(seed + omp_get_thread_num()), &xs);
 

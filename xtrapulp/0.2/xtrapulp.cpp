@@ -85,7 +85,7 @@ extern "C" int xtrapulp_run(dist_graph_t* g, pulp_part_control_t* ppc,
   if (ppc->do_repart)
     memcpy(pulp.local_parts, parts, g->n_local*sizeof(int32_t));
 
-  //The meat
+  //Runs the heart (and brains) of the program
   xtrapulp(g, ppc, &comm, &pulp, &q, mvtxwgt_method);
 
   //cleanup
@@ -187,9 +187,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
       {
         for(uint32_t wc = 0; wc < g->vertex_weights_num; ++wc)
         {
-          std::cout << "Starting pulp_v_weighted" << std::endl;
           pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, wc);
-          std::cout << "Completed pulp_v_weighted" << std::endl;
         }
         //std::cout << "Starting pulp_vec_weighted" << std::endl;
         //pulp_vec_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance);
@@ -242,7 +240,6 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
       if (procid == 0 && verbose)
         printf("done: %9.6lf(s)\n", elt3);
     }
-    /*
     else if (do_edge_balance && do_maxcut_balance &&
              (has_vert_weights || has_edge_weights))
     {
@@ -268,7 +265,6 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
       if (procid == 0 && verbose)
         printf("done: %9.6lfs\n", elt3);
     }
-    */
 
     elt2 = timer() - elt2;
     if (procid == 0 && verbose)
@@ -332,22 +328,24 @@ extern "C" int * norm_weights(unsigned long n_local, int * vertex_weights, unsig
 {
 	int * norm_vertex_weights = new int[n_local];
 	
-	for (int vtx_idx = 0; vtx_idx < (int) n_local; ++vtx_idx)
+	for (int vtx = 0; vtx < (int) n_local; ++vtx)
 	{
 		//unsigned long long is used since the norm-2 calculations involve very huge numbers
-		int32_t result = 0;
+		uint64_t result = 0;
 
 		// vertex_weights is a 1-D array containing all vertex weights first ordered by the vertex each belongs to, second by order of weight components
 		// vertex_weights[vtx_idx * vertex_weights_num + wc] corresponds to the vertex weight for vertex vtx_idx, weight component wc
 		for (uint32_t wc = 0; wc < vertex_weights_num; ++wc)
 		{
-			if (norm_option == 1) result += vertex_weights[vtx_idx * vertex_weights_num + wc];
-			else if (norm_option == 2) result += (unsigned long long) (vertex_weights[vtx_idx * vertex_weights_num + wc]) ^ 2;
-			else if (vertex_weights[vtx_idx * vertex_weights_num + wc] > result) result = vertex_weights[vtx_idx * vertex_weights_num + wc];
+			if (norm_option == 1) result += vertex_weights[vtx * vertex_weights_num + wc];
+      else if (norm_option == 2) 
+        result += (uint64_t) (vertex_weights[vtx * vertex_weights_num + wc])^2;
+      else if((uint64_t) vertex_weights[vtx * vertex_weights_num + wc] > result)
+        result = (uint64_t) vertex_weights[vtx * vertex_weights_num + wc];
 		}
 		if (norm_option == 2) result = sqrt(result);
 
-		norm_vertex_weights[vtx_idx] = result;
+		norm_vertex_weights[vtx] = result;
 	}
 
 	return norm_vertex_weights;

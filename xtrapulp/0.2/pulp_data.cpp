@@ -61,8 +61,8 @@ void init_thread_pulp(thread_pulp_t* tp, pulp_data_t* pulp, int vertex_weights_n
   //if (debug) printf("Task %d init_thread_pulp() start\n", procid); 
 
   tp->part_counts = (double*)malloc(pulp->num_parts*sizeof(double));
-  
-  tp->part_weights = (double*)malloc(vertex_weights_num * pulp->num_parts * sizeof(double));
+  tp->part_weights =
+    (double*)malloc(vertex_weights_num * pulp->num_parts * sizeof(double));
   tp->part_edge_weights = (double*)malloc(pulp->num_parts*sizeof(double));
   tp->part_cut_weights = (double*)malloc(pulp->num_parts*sizeof(double));
  
@@ -86,10 +86,9 @@ void init_pulp_data(dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts)
   if (debug) printf("Task %d init_pulp_data() start\n", procid); 
   
   pulp->num_parts = num_parts;
-  pulp->avg_size = new double[g->vertex_weights_num];
-  pulp->max_v = new double[g->vertex_weights_num];
-  pulp->running_max_v = new double[g->vertex_weights_num];
-  
+  pulp->avg_size = (double*)malloc(g->vertex_weights_num * sizeof(double));
+  pulp->max_v = (double*)malloc(g->vertex_weights_num * sizeof(double));
+  pulp->running_max_v = (double*)malloc(g->vertex_weights_num * sizeof(double));
 
   for(uint32_t wc = 0; wc < g->vertex_weights_num; ++wc)
   {
@@ -133,12 +132,14 @@ void init_pulp_data(dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts)
 
   pulp->local_parts = (int32_t*)malloc(g->n_total*sizeof(int32_t));
 
-  pulp->part_sizes = new int64_t[pulp->num_parts * g->vertex_weights_num];
+  pulp->part_sizes = 
+    (int64_t*)malloc(pulp->num_parts * g->vertex_weights_num *sizeof(int64_t));
   pulp->part_edge_sizes = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
 
   pulp->part_cut_sizes = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
 
-  pulp->part_size_changes = new int64_t[pulp->num_parts * g->vertex_weights_num];
+  pulp->part_size_changes = 
+    (int64_t*)malloc(pulp->num_parts * g->vertex_weights_num * sizeof(int64_t));
 
   pulp->part_edge_size_changes = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
   pulp->part_cut_size_changes = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
@@ -352,15 +353,15 @@ void clear_pulp_data(pulp_data_t* pulp)
 {
   if (debug) printf("Task %d clear_pulp_data() start\n", procid); 
 
-	delete [] pulp->avg_size;
-	delete [] pulp->max_v;
-	delete [] pulp->running_max_v;
+	free(pulp->avg_size);
+	free(pulp->max_v);
+	free(pulp->running_max_v);
 
   free(pulp->local_parts);
-  delete [] pulp->part_sizes;
+  free(pulp->part_sizes);
   free(pulp->part_edge_sizes);
   free(pulp->part_cut_sizes);
-  delete [] pulp->part_size_changes;
+  free(pulp->part_size_changes);
   free(pulp->part_edge_size_changes);
   free(pulp->part_cut_size_changes);
 

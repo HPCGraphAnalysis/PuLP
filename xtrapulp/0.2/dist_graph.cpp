@@ -341,9 +341,6 @@ int clear_graph(dist_graph_t *g)
 {
   if (debug) { printf("Task %d clear_graph() start\n", procid); }
 
-  delete[] g->vertex_weights;
-  delete[] g->vertex_weights_sum;
-
   free(g->out_edges);
   free(g->out_degree_list);
   free(g->ghost_degrees);
@@ -353,7 +350,11 @@ int clear_graph(dist_graph_t *g)
   clear_map(g->map);
   free(g->map);
 
-  if (g->vertex_weights != NULL) free(g->vertex_weights);
+  //20 Aug 17: XtraPuLP was built and test using Zoltan2 and the arrays below were constructed using new [] instead of malloc. If XtraPuLP is run by itself, then vertex_weights and vertex_weights_num's memory should be deallocated by "free" instead of delete.
+  if (g->vertex_weights != NULL) delete [] g->vertex_weights;
+  if (g->vertex_weights_sum != NULL) delete [] g->vertex_weights_sum;
+  //if (g->vertex_weights != NULL) free(g->vertex_weights);
+  //if (g->vertex_weights_sum != NULL) free(g->vertex_weights_sum;)
   if (g->edge_weights != NULL) free(g->edge_weights);
 
   if (debug) { printf("Task %d clear_graph() success\n", procid); }

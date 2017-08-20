@@ -810,13 +810,21 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
     for (uint64_t vert_index = 0; vert_index < g->n_local; ++vert_index)
     {
       int32_t part = pulp->local_parts[vert_index];
-      int32_t * vert_weight = new int32_t[g->vertex_weights_num];
 
-			for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
-			{
-        if (has_vwgts) vert_weight[wc] = 
-          g->vertex_weights[vert_index * g->vertex_weights_num + wc];
-			}
+      int32_t *vert_weight = NULL;
+
+      if (has_vwgts)
+      {
+        vert_weight = (int32_t*)malloc(g->vertex_weights_num * sizeof(int32_t));
+
+        for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
+        {
+          vert_weight[wc] = 
+            g->vertex_weights[vert_index * g->vertex_weights_num + wc];
+        }
+      }
+
+
 
 	  //C(1...p) = 0
       for (int32_t p = 0; p < pulp->num_parts; ++p)
@@ -957,6 +965,8 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
         add_vid_to_send(&tq, q, vert_index);
         //add_vid_to_queue(&tq, q, vert_index);
       }
+      
+      if (has_vwgts) free(vert_weight);
     }  
 
     empty_send(&tq, q);
@@ -1086,6 +1096,8 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       pulp->weight_exponent_c = 1.0;
     }
 
+
+
     cur_iter += 1.0;
     //multiplier = (double)pulp->num_parts*(1.0-(double)cur_iter/(double)tot_iter)+1.0*pulp->num_parts*(double)cur_iter/((double)tot_iter*2.0);
     multiplier = (double)nprocs*( (X - Y)*(cur_iter/tot_iter) + Y );
@@ -1121,14 +1133,18 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
     for (uint64_t vert_index = 0; vert_index < g->n_local; ++vert_index)
     {
       int32_t part = pulp->local_parts[vert_index];
-      int32_t * vert_weight = new int32_t[g->vertex_weights_num];
+      int32_t *vert_weight = NULL;
 
-			for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
-			{
-        if (has_vwgts) vert_weight[wc] = 
-          g->vertex_weights[vert_index * g->vertex_weights_num + wc];
-			}
+      if (has_vwgts)
+      {
+        vert_weight = (int32_t*)malloc(g->vertex_weights_num * sizeof(int32_t));
 
+        for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
+        {
+          vert_weight[wc] =
+              g->vertex_weights[vert_index * g->vertex_weights_num + wc];
+        }
+      }
 
       for (int32_t p = 0; p < pulp->num_parts; ++p)
         tp.part_counts[p] = 0.0;
@@ -1254,6 +1270,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
           //add_vid_to_queue(&tq, q, vert_index);
         }
       }
+      if (has_vwgts) free(vert_weight);
     }  
 
     empty_send(&tq, q);
@@ -1402,6 +1419,8 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 }
   }*/
 } // end outer loop
+
+
 
   clear_thread_queue(&tq);
   clear_thread_comm(&tc);

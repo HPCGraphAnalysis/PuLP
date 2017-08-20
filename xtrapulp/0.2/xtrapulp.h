@@ -114,7 +114,7 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
           unsigned long* local_adjs, unsigned long* local_offsets,
           unsigned long* global_ids, unsigned long* vert_dist,
           int* vertex_weights, int* edge_weights, double* vertex_weights_sum,
-          unsigned long vertex_weights_num = 1, int norm_option = 2, int multiweight_option = 0);
+          unsigned long vertex_weights_num, int norm_option = 2, int multiweight_option = 0);
 
 extern "C" int * norm_weights(unsigned long _local, int * vertex_weights, unsigned long vertex_weights_num, int norm_option);
 

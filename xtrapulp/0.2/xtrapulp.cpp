@@ -281,7 +281,7 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
           unsigned long n_local, unsigned long m_local,
           unsigned long* local_adjs, unsigned long* local_offsets,
           unsigned long* global_ids, unsigned long* vert_dist,
-          int* vertex_weights, int* edge_weights, double * vertex_weights_sum,
+          int32_t* vertex_weights, int* edge_weights, int64_t * vertex_weights_sum,
           unsigned long vertex_weights_num, int norm_option, int multiweight_option)
 {
   if(multiweight_option == 0 && vertex_weights_num > 1)
@@ -301,6 +301,7 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
 
   MPI_Comm_rank(MPI_COMM_WORLD, &procid);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+
   if (nprocs > 1)
   {
     create_graph(g, (uint64_t)n_global, (uint64_t)m_global,
@@ -308,7 +309,7 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
                  (uint64_t*)local_offsets, (uint64_t*)local_adjs,
                  (uint64_t*)global_ids,
                  (int32_t*)vertex_weights, (int32_t*)edge_weights, 
-                 (uint32_t*) vertex_weights_sum, (uint64_t) vertex_weights_num);
+                 (int64_t*) vertex_weights_sum, (uint64_t) vertex_weights_num);
     relabel_edges(g, vert_dist);
   }
   else
@@ -317,7 +318,7 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
                  (uint64_t)n_local, (uint64_t)m_local,
                  (uint64_t*)local_offsets, (uint64_t*)local_adjs,
                  (int32_t*)vertex_weights, (int32_t*)edge_weights, 
-                 (uint32_t*) vertex_weights_sum, (uint64_t) vertex_weights_num);
+                 (int64_t*) vertex_weights_sum, (uint64_t) vertex_weights_num);
   }
 
   get_ghost_degrees(g);
@@ -329,9 +330,9 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
 // normalizes multiple weights to a scalar and single weight based on the argument norm_option
 // If norm_option = 1, then 1-norm; 2, then 2 -norm; otherwise, inf-norm
 
-extern "C" int * norm_weights(unsigned long n_local, int * vertex_weights, unsigned long vertex_weights_num, int norm_option)
+extern "C" int * norm_weights(unsigned long n_local, int32_t * vertex_weights, unsigned long vertex_weights_num, int norm_option)
 {
-	int * norm_vertex_weights = new int[n_local];
+	int32_t * norm_vertex_weights = new int32_t[n_local];
 	
 	for (int vtx = 0; vtx < (int) n_local; ++vtx)
 	{

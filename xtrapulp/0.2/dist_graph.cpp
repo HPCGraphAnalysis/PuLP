@@ -202,7 +202,7 @@ int create_graph(dist_graph_t* g,
           uint64_t* local_offsets, uint64_t* local_adjs, 
           uint64_t* global_ids,
           int32_t* vertex_weights, int32_t* edge_weights, 
-          uint32_t* vertex_weights_sum, uint64_t vertex_weights_num)
+          int64_t* vertex_weights_sum, uint64_t vertex_weights_num)
 { 
   if (debug) { printf("Task %d create_graph() start\n", procid); }
 
@@ -232,7 +232,6 @@ int create_graph(dist_graph_t* g,
 
     if(vertex_weights_sum != NULL)
     {
-      std::cout << "We have vertex_weights_sum" << std::endl;
       g->vertex_weights_sum = vertex_weights_sum;
     }
     else 
@@ -243,11 +242,11 @@ int create_graph(dist_graph_t* g,
         g->vertex_weights_sum[wc] = 0;
       }
 
-      for (uint64_t i = 0; i < g->n_local; ++i)
+      for (uint64_t v = 0; v < g->n_local; ++v)
       {
         for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
         {
-          g->vertex_weights_sum[wc] += g->vertex_weights[i*(g->vertex_weights_num) + wc];
+          g->vertex_weights_sum[wc] += g->vertex_weights[v*(g->vertex_weights_num) + wc];
         }
       }
       
@@ -286,7 +285,7 @@ int create_graph_serial(dist_graph_t* g,
           uint64_t n_local, uint64_t m_local,
           uint64_t* local_offsets, uint64_t* local_adjs,
           int32_t* vertex_weights, int32_t* edge_weights, 
-          uint32_t* vertex_weights_sum, uint64_t vertex_weights_num)
+          int64_t* vertex_weights_sum, uint64_t vertex_weights_num)
 {
   if (debug) { printf("Task %d create_graph_serial() start\n", procid); }
   double elt = 0.0;
@@ -316,7 +315,6 @@ int create_graph_serial(dist_graph_t* g,
 
     if (vertex_weights_sum != NULL)
     {
-      std::cout << "We have vertex_weights_sum" << std::endl;
       g->vertex_weights_sum = vertex_weights_sum;
     }
     else

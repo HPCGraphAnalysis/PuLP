@@ -111,6 +111,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
   bool do_edge_balance = ppc->do_edge_balance;
   bool do_maxcut_balance = ppc->do_maxcut_balance;
   bool do_repart = ppc->do_repart;
+  //See comment about g->vertex_weights in create_xtrapulp_dist_graph by Escobar before changing the values below. 
   bool has_vert_weights = (g->vertex_weights != NULL);
   bool has_edge_weights = (g->edge_weights != NULL);
   int balance_outer_iter = 1;
@@ -177,7 +178,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
   for (int boi = 0; boi < balance_outer_iter; ++boi)
   {
     elt2 = timer();
-    //if we want to balance vertices given vertex weights or edge weights, then run pulp_v_weighted
+
     if (do_vert_balance && (has_vert_weights || has_edge_weights))
     {
       if (procid == 0 && verbose) printf("\t\tDoing (weighted) vert balance and refinement stage\n");
@@ -189,9 +190,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
         {
           pulp_v_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter, vert_refine_iter, vert_balance, edge_balance, wc);
         }
-        std::cout << "Starting pulp_vec_weighted" << std::endl;
         pulp_vec_weighted(g, comm, q, pulp, vert_outer_iter, vert_balance_iter,   vert_refine_iter, vert_balance, edge_balance);
-        std::cout << "Completed pulp_vec_weighted" << std::endl;
       }
       else
       {
@@ -285,14 +284,20 @@ extern "C" int create_xtrapulp_dist_graph(dist_graph_t* g,
           int* vertex_weights, int* edge_weights, double * vertex_weights_sum,
           unsigned long vertex_weights_num, int norm_option, int multiweight_option)
 {
-  //In xtrapulp.h, the default parameters are: vertex_weights_num = 1, norm_option = 2, and multiweight_option = 0
-
-  if(multiweight_option == 0)
+  if(multiweight_option == 0 && vertex_weights_num > 1)
   {
     //converts multiple weights per vertex into a single weight per vertex
     vertex_weights = norm_weights(n_local, vertex_weights, vertex_weights_num, norm_option);
     vertex_weights_num = 1;    
   }
+
+  //Escobar: Given a graph problem with no vertex weights to consider, the number of vertex weight components is 0. This fact is included with vertex_weights (and g->vertex_weights) == NULL.
+
+  //For generalization, vertex_weights_num is changed from 0 to 1. This is necessary since array iterations and allocations depend on g->vertex_weights_num being a positive integer. For example: pulp->avg_size = (double*)malloc(g->vertex_weights_num * sizeof(double)) else segmentation faults occur. 
+
+  //In the case for vertex weight components being 0 or 1, there is no difference in array iteration or allocation size: these arrays/iterations are all of size 1. For these reasons, vertex_weights_num is changed to 1. Changing this does not make us lose the fact that there is one or no vertex weights; vertex_weights and g->vertex_weights still captures this. 
+
+  if(vertex_weights_num == 0) vertex_weights_num = 1;
 
   MPI_Comm_rank(MPI_COMM_WORLD, &procid);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);

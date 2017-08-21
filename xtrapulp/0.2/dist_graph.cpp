@@ -218,34 +218,48 @@ int create_graph(dist_graph_t* g,
   g->m_local = m_local;
   g->vertex_weights = NULL;
   g->vertex_weights_num = vertex_weights_num;
-  g->vertex_weights_sum = vertex_weights_sum;
+  g->vertex_weights_sum = NULL;
   
   g->edge_weights = NULL;
   g->map = (struct fast_map*)malloc(sizeof(struct fast_map));
 
   g->out_edges = local_adjs;
   g->out_degree_list = local_offsets;
+
   if (vertex_weights != NULL) 
   {
     g->vertex_weights = vertex_weights;
 
-    for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
+    if(vertex_weights_sum != NULL)
     {
-      g->vertex_weights_sum[wc] = 0;
+      std::cout << "We have vertex_weights_sum" << std::endl;
+      g->vertex_weights_sum = vertex_weights_sum;
     }
-
-    for (uint64_t i = 0; i < g->n_local; ++i)
+    else 
     {
+      //The vertex weight sum step is already done by Zoltan2. If running XtraPuLP by itself, then run below
       for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
       {
-        g->vertex_weights_sum[wc] += g->vertex_weights[i*(g->vertex_weights_num) + wc];
+        g->vertex_weights_sum[wc] = 0;
       }
-    }
 
-    MPI_Allreduce(MPI_IN_PLACE, &g->vertex_weights_sum, 1, 
-                  MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+      for (uint64_t i = 0; i < g->n_local; ++i)
+      {
+        for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
+        {
+          g->vertex_weights_sum[wc] += g->vertex_weights[i*(g->vertex_weights_num) + wc];
+        }
+      }
+      
+      MPI_Allreduce(MPI_IN_PLACE, &g->vertex_weights_sum, vertex_weights_num,MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+    }
   }
-  else g->vertex_weights = NULL;
+  else
+  {
+    g->vertex_weights = NULL;
+    g->vertex_weights_sum = NULL;
+  }
+
   if (edge_weights != NULL) g->edge_weights = edge_weights;
   else g->edge_weights = NULL;
 
@@ -290,30 +304,46 @@ int create_graph_serial(dist_graph_t* g,
   g->n_total = g->n_local;
   g->vertex_weights = NULL;
   g->vertex_weights_num = vertex_weights_num;
-  g->vertex_weights_sum = vertex_weights_sum;
+  g->vertex_weights_sum = NULL;
   g->edge_weights = NULL;
   g->map = (struct fast_map*)malloc(sizeof(struct fast_map));
   g->out_edges = local_adjs;
   g->out_degree_list = local_offsets;
 
-  if (vertex_weights != NULL) 
+  if (vertex_weights != NULL)
   {
     g->vertex_weights = vertex_weights;
 
-    for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
+    if (vertex_weights_sum != NULL)
     {
-      g->vertex_weights_sum[wc] = 0;
+      std::cout << "We have vertex_weights_sum" << std::endl;
+      g->vertex_weights_sum = vertex_weights_sum;
     }
-
-    for (uint64_t i = 0; i < g->n_local; ++i)
+    else
     {
+      //The vertex weight sum step is already done by Zoltan2. If running XtraPuLP by itself, then run below
       for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
       {
-        g->vertex_weights_sum[wc] += g->vertex_weights[i*(g->vertex_weights_num) + wc];
+        g->vertex_weights_sum[wc] = 0;
       }
+
+      for (uint64_t i = 0; i < g->n_local; ++i)
+      {
+        for (uint64_t wc = 0; wc < g->vertex_weights_num; ++wc)
+        {
+          g->vertex_weights_sum[wc] += g->vertex_weights[i * (g->vertex_weights_num) + wc];
+        }
+      }
+
+      MPI_Allreduce(MPI_IN_PLACE, &g->vertex_weights_sum, vertex_weights_num, MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
     }
   }
-  else g->vertex_weights = NULL;
+  else
+  {
+    g->vertex_weights = NULL;
+    g->vertex_weights_sum = NULL;
+  }
+
   if (edge_weights != NULL) g->edge_weights = edge_weights;
   else g->edge_weights = NULL; 
 
@@ -355,6 +385,7 @@ int clear_graph(dist_graph_t *g)
   if (g->vertex_weights_sum != NULL) delete [] g->vertex_weights_sum;
   //if (g->vertex_weights != NULL) free(g->vertex_weights);
   //if (g->vertex_weights_sum != NULL) free(g->vertex_weights_sum;)
+
   if (g->edge_weights != NULL) free(g->edge_weights);
 
   if (debug) { printf("Task %d clear_graph() success\n", procid); }

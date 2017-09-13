@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS=-fopenmp -g -Wall
+CXXFLAGS=-fopenmp -O3 -Wall
 
 all: pulp libpulp
 

@@ -4,11 +4,11 @@ PULPVERSION=0.2
 XTRAPULPVERSION=0.2
 
 cd pulp/$PULPVERSION/
-make
+make clean ; make -j
 cd ../..
 
 cd xtrapulp/$XTRAPULPVERSION/
-make
+make clean ; make -j
 cd ../..
 
 if [ ! -d include/ ]; then

@@ -42,6 +42,8 @@
 //@HEADER
 */
 
+#include <cassert>
+
 using namespace std;
 
 extern int seed;
@@ -82,8 +84,8 @@ int* label_prop(pulp_graph_t& g, int num_parts, int* parts,
 
 #pragma omp for
   for (int i = 0; i < num_verts; ++i)
-    parts[i] = (int)xs1024star_next(&xs) % num_parts;
-
+    parts[i] = (int)((unsigned)xs1024star_next(&xs) % (unsigned)num_parts);
+  
   long* part_sizes_thread = new long[num_parts];
   for (int i = 0; i < num_parts; ++i) 
     part_sizes_thread[i] = 0;
@@ -96,7 +98,7 @@ int* label_prop(pulp_graph_t& g, int num_parts, int* parts,
 #pragma omp atomic
     part_sizes[i] += part_sizes_thread[i];
 
-  delete [] part_sizes_thread;
+  //delete [] part_sizes_thread;
 
 
 #pragma omp for schedule(static) nowait
@@ -248,8 +250,6 @@ int* label_prop(pulp_graph_t& g, int num_parts, int* parts,
 }
 
 
-
-
 int* label_prop_weighted(pulp_graph_t& g, int num_parts, int* parts,
   int label_prop_iter, double balance_vert_lower)
 {
@@ -280,7 +280,7 @@ int* label_prop_weighted(pulp_graph_t& g, int num_parts, int* parts,
 
 #pragma omp for
   for (int i = 0; i < num_verts; ++i)
-    parts[i] = (int)xs1024star_next(&xs) % num_parts;
+    parts[i] = (int)((unsigned)xs1024star_next(&xs) % (unsigned)num_parts);
 
   long* part_sizes_thread = new long[num_parts];
   for (int i = 0; i < num_parts; ++i) 
@@ -298,7 +298,6 @@ int* label_prop_weighted(pulp_graph_t& g, int num_parts, int* parts,
     part_sizes[i] += part_sizes_thread[i];
 
   delete [] part_sizes_thread;
-
 
 #pragma omp for schedule(static) nowait
   for (int i = 0; i < num_verts; ++i)

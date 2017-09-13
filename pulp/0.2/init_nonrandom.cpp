@@ -249,7 +249,7 @@ int* init_nonrandom_constrained(pulp_graph_t& g, int num_parts, int* parts)
 #pragma omp for
   for (int i = 0; i < num_verts; ++i)
     if (parts[i] == -1)
-      parts[i] = xs1024star_next(&xs) % num_parts;
+      parts[i] = (int)((unsigned)xs1024star_next(&xs) % (unsigned)num_parts);
 
 } // end parallel
   

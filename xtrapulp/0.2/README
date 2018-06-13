@@ -66,7 +66,7 @@ would indicate a graph with the following directed edges:
 v0 -> v1
 v1 -> v2
 v2 -> v3
-v3 -> v0
+v3 -> v4
 
 [num parts] is the number of desired partitions (>=2)
 

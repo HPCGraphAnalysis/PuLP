@@ -93,25 +93,25 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
 {
   double do_label_prop = ppc->do_lp_init;
   double do_nonrandom_init = ppc->do_bfs_init;
-  verbose = ppc->verbose_output;
-  debug = true;
+  verbose = true;//ppc->verbose_output;
+  debug = false;
   bool do_repart = ppc->do_repart;
   int label_prop_iter = 3;
-  int outer_iter = 5;
-  int weight_outer_iter = 3;
+  int outer_iter = 1;
+  int weight_outer_iter = g->num_weights*3;//6;
   int balance_iter = 5;
   int refine_iter = 10;
   int num_weights = (int)ppc->num_weights;
   int num_parts = (int)pulp->num_parts;
   seed = ppc->pulp_seed;
 
-  X = 1.0;
-  Y = 0.25;
+  X = 1.25;
+  Y = 1.0;
   // Tighten up allowable exchange for small graphs, 
   //  and just use block initialization
-  if (g->n/(long unsigned)nprocs < 100) {
-    Y = 1.0;
+  if (g->n/(long unsigned)nprocs < 5000) {
     X = 2.0;
+    Y = 1.0;
     do_label_prop = false;
     do_nonrandom_init = false;
   }

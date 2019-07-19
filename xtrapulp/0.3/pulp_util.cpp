@@ -273,11 +273,11 @@ int part_eval_weighted(dist_graph_t* g, pulp_data_t* pulp)
   for (uint64_t w = 0; w < g->num_weights; ++w)
     pulp->part_sizes[w] = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
 
-  for (int32_t i = 0; i < pulp->num_parts; ++i)
+  for (int32_t p = 0; p < pulp->num_parts; ++p)
   {
     for (uint64_t w = 0; w < g->num_weights; ++w)
-      pulp->part_sizes[w][i] = 0;
-    pulp->part_cut_sizes[i] = 0;
+      pulp->part_sizes[w][p] = 0;
+    pulp->part_cut_sizes[p] = 0;
   }
   pulp->cut_size = 0;
   pulp->max_cut = 0;
@@ -382,6 +382,17 @@ int part_eval_weighted(dist_graph_t* g, pulp_data_t* pulp)
     printf("cb: %2.3lf (%d, %li), gb: %2.3lf (%li)\n",
       pulp->max_c, max_c_part, max_c_size,
       ghost_balance, max_ghost);
+
+    if (debug) {
+      for (int32_t p = 0; p < pulp->num_parts; ++p) {
+        printf("p: %d, ", p);
+        for (uint64_t w = 0; w < g->num_weights; ++w) {
+          printf("%lu: %lu, ", w, pulp->part_sizes[w][p]);
+        }
+        printf("\n");
+      }
+    }
+ 
   }
   
   free(part_size_sums);

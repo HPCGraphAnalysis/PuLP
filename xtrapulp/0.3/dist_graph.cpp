@@ -422,27 +422,48 @@ int set_weights_graph(dist_graph_t *g)
     elt = omp_get_wtime();
   }
 
-  g->num_weights = 2;
+  g->num_weights = 3;
   g->vertex_weights = 
       (int32_t*)malloc(g->num_weights*g->n_local*sizeof(int32_t));
   g->edge_weights = (int32_t*)malloc(g->m_local*2*sizeof(int32_t));
-  g->vertex_weights_sums = (int64_t*)malloc(g->num_weights*sizeof(int64_t));
+  g->max_weights = (int32_t*)malloc((g->num_weights+1)*sizeof(int32_t));
+  g->vertex_weights_sums = (int64_t*)malloc((g->num_weights+1)*sizeof(int64_t));
 
-  for (uint64_t w = 0; w < g->num_weights; ++w)
+  for (uint64_t w = 0; w < g->num_weights; ++w) {
+    g->max_weights[w] = 1;
     g->vertex_weights_sums[w] = 0;
+  }
 
-#pragma omp parallel for
+//#pragma omp parallel for
   for (uint64_t v = 0; v < g->n_local; ++v) {
     g->vertex_weights[v*g->num_weights] = 1;
     g->vertex_weights[v*g->num_weights+1] = (int32_t)out_degree(g, v);
     g->vertex_weights_sums[0] += 1;
     g->vertex_weights_sums[1] += (int64_t)out_degree(g, v);
+    if ((int32_t)out_degree(g, v) > g->max_weights[1])
+      g->max_weights[1] = (int32_t)out_degree(g, v);
+
+    uint64_t sum_neighbors = 0;
+    uint64_t* outs = out_vertices(g, v);
+    for (uint64_t i = 0; i < out_degree(g, v); ++i)
+      if (outs[i] < g->n_local)
+        sum_neighbors += out_degree(g, outs[i]);
+      else
+        sum_neighbors += g->ghost_degrees[outs[i]-g->n_local];
+
+    g->vertex_weights[v*g->num_weights+2] = sum_neighbors;
+    g->vertex_weights_sums[2] += sum_neighbors;
+    if (sum_neighbors > g->max_weights[2])
+      g->max_weights[2] = sum_neighbors;
   }
 
-  MPI_Allreduce(MPI_IN_PLACE, &g->vertex_weights_sums[0], 1, MPI_INT64_T,
-                MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, &g->vertex_weights_sums[1], 1, MPI_INT64_T,
-                MPI_SUM, MPI_COMM_WORLD);
+  for (uint64_t w = 0; w < g->num_weights; ++w) {
+    MPI_Allreduce(MPI_IN_PLACE, &g->vertex_weights_sums[w], 1, MPI_INT64_T,
+                  MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &g->max_weights[w], 1, MPI_INT32_T,
+                  MPI_MAX, MPI_COMM_WORLD);
+  }
+
 
 #pragma omp parallel for
   for (uint64_t e = 0; e < g->m_local*2; ++e)

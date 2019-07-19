@@ -49,6 +49,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <assert.h>
+#include <math.h>
 
 #include "xtrapulp.h"
 #include "util.h"
@@ -82,6 +83,10 @@ int pulp_w(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
     elt = omp_get_wtime();
   }
 
+  bool balance_cut = false;
+  bool balance_achieved = false;
+  //g->num_weights = 3;
+
   //double balance = constraints[weight_index];
 
   q->queue_size = 0;
@@ -98,12 +103,14 @@ int pulp_w(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
         pulp->maxes[w] = (double)pulp->part_sizes[w][p] / pulp->avg_sizes[w];
     }
     pulp->weight_exponents[w] = pulp->maxes[w] / constraints[w];
-    if ( pulp->maxes[w] < constraints[w])
+    if (pulp->maxes[w] < constraints[w])
     {
       pulp->maxes[w] = constraints[w];
       pulp->weight_exponents[w] = 1.0;
     }
   }
+  pulp->max_c = 0.0;
+  pulp->weight_exponent_c = 1.0;
 
 
   double tot_iter = (double)(outer_iter*(refine_iter+balance_iter));
@@ -133,7 +140,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
 #pragma omp single
 {
-  part_eval_weighted(g, pulp);
+  //part_eval_weighted(g, pulp);
   update_pulp_data_weighted(g, pulp);
   if (procid == 0) printf("EVAL balance ------------------------------\n");
   num_swapped_1 = 0;
@@ -145,9 +152,21 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       for (int32_t p = 0; p < pulp->num_parts; ++p) {
         tp.part_weights[w][p] = 
             constraints[w] * pulp->avg_sizes[w] / 
-            ((double)pulp->part_sizes[w][p] + multiplier*(double)pulp->part_size_changes[w][p]) - 1.0;
-        if (tp.part_weights[w][p] < 0.0)
-          tp.part_weights[w][p] = 0.0;
+            (double)pulp->part_sizes[w][p] - 1.0;
+            //((double)pulp->part_sizes[w][p] + multiplier*(double)pulp->part_size_changes[w][p]) - 1.0;
+        //if (tp.part_weights[w][p] < 0.0)
+        //  tp.part_weights[w][p] = 0.0;
+      }
+      //if (omp_get_thread_num() == 0) 
+      //  printf("%d, %lu %lu %lf %lf\n", 
+      //    procid, cur_bal_iter, w, pulp->maxes[w], pulp->weight_exponents[w]);
+    }
+    if (balance_cut) {
+      pulp->avg_cut_size = (double)pulp->cut_size / (double)pulp->num_parts;
+      for (int32_t p = 0; p < pulp->num_parts; ++p) {
+        if ((double)pulp->part_cut_sizes[p] / pulp->avg_cut_size > pulp->max_c)
+          pulp->max_c = (double)pulp->part_cut_sizes[p] / pulp->avg_cut_size;
+        tp.part_cut_weights[p] = pulp->max_c * pulp->avg_cut_size / (double)pulp->part_cut_sizes[p] - 1.0;
       }
     }
 
@@ -184,17 +203,46 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       int32_t max_part = part;
       double max_val = 0.0;
       uint64_t num_max = 0;
+      double best_gain = 0.0;
+      int32_t best_gain_part = 0;
+      int64_t max_count = 0;
+      int64_t part_count = (int64_t)tp.part_counts[part];
       for (int32_t p = 0; p < pulp->num_parts; ++p)
       {
+        int64_t count_init = (int64_t)tp.part_counts[p];
+        double sum_gain = 0.0;
         for (uint64_t w = 0; w < g->num_weights; ++w) {
-          int32_t vert_weight = 
-              g->vertex_weights[vert_index*g->num_weights + w];
-          if (tp.part_weights[w][p] > 0.0)
-            tp.part_counts[p] *= //(double)vert_weight*
-                tp.part_weights[w][p]*pulp->weight_exponents[w];
-          else
-            tp.part_counts[p] = 0.0;
+          double vert_weight = 
+              (double)g->vertex_weights[vert_index*g->num_weights+w] / 
+              (double)g->max_weights[w];
+          double gain =
+              (tp.part_weights[w][p] - tp.part_weights[w][part])*
+                vert_weight*pulp->weight_exponents[w]; 
+          sum_gain += gain;
+          //if (gain > best_gain) {
+          //  gain = best_gain;
+          //  best_gain_part = p;
+          //}
+
+          // if (gain == best_gain && gain != 0.0) {
+          //   tp.part_counts[num_max++] = (double)p;
+          // } else if (gain > best_gain) {
+          //   best_gain = gain;
+          //   max_part = p;
+          //   num_max = 0;
+          //   tp.part_counts[num_max++] = (double)p;
+          // }
+          //int32_t vert_weight = 
+          //    g->vertex_weights[vert_index*g->num_weights + w];
+          //if (tp.part_weights[w][p] > 0.0)//(double)vert_weight*
+          //tp.part_weights[w][p]*pulp->weight_exponents[w];
+          //else
+          // tp.part_counts[p] = 0.0;
         }
+          //if (gain > 0.0)
+        tp.part_counts[p] *= sum_gain;
+        if (balance_cut * tp.part_cut_weights[p] > 0.0)
+          tp.part_counts[p] *= tp.part_cut_weights[p];
 
         if (tp.part_counts[p] == max_val && tp.part_counts[p] != 0.0) {
           tp.part_counts[num_max++] = (double)p;
@@ -202,6 +250,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
           max_val = tp.part_counts[p];
           max_part = p;
           num_max = 0;
+          max_count = count_init;
           tp.part_counts[num_max++] = (double)p;
         }
       }      
@@ -209,13 +258,27 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       if (num_max > 1)
         max_part = 
           (int32_t)tp.part_counts[(xs1024star_next(&xs) % num_max)];
+      //else if (num_max == 0) {
 
+      //max_part = best_gain_part;
       if (max_part != part)
       {
         /*printf("%d %d - %lu to %d (%li + %li) from %d (%li + %li), %f\n", 
           procid, omp_get_thread_num(), g->local_unmap[vert_index], max_part, pulp->part_sizes[max_part], pulp->part_size_changes[max_part], part, pulp->part_sizes[part], pulp->part_size_changes[part], max_val);*/
 
-        ++num_swapped_1;
+        ++num_swapped_1;        
+
+        if (balance_cut) {
+          int64_t diff_part = 2*part_count - (int64_t)out_degree;
+          int64_t diff_max_part = (int64_t)(out_degree) - 2*max_count;
+          int64_t diff_cut = part_count - max_count;
+    #pragma omp atomic
+          pulp->cut_size_change += diff_cut;
+    #pragma omp atomic
+          pulp->part_cut_size_changes[part] += diff_part;
+    #pragma omp atomic
+          pulp->part_cut_size_changes[max_part] += diff_max_part;
+        }
 
         for (uint64_t w = 0; w < g->num_weights; ++w) {
           int32_t vert_weight = 
@@ -224,6 +287,10 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
           pulp->part_size_changes[w][part] -= vert_weight;
       #pragma omp atomic
           pulp->part_size_changes[w][max_part] += vert_weight;
+      // #pragma omp atomic
+      //     pulp->part_sizes[w][part] -= vert_weight;
+      // #pragma omp atomic
+      //     pulp->part_sizes[w][max_part] += vert_weight;
         }
         
         for (uint64_t w = 0; w < g->num_weights; ++w) {
@@ -235,10 +302,21 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
             constraints[w] * pulp->avg_sizes[w] / 
             ((double)pulp->part_sizes[w][max_part] + multiplier*(double)pulp->part_size_changes[w][max_part]) - 1.0;
         
-          if (tp.part_weights[w][part] < 0.0)
-            tp.part_weights[w][part] = 0.0;
-          if (tp.part_weights[w][max_part] < 0.0)
-            tp.part_weights[w][max_part] = 0.0;
+          if (balance_cut) {
+            double avg_cut_size = (double)pulp->cut_size / (double)pulp->num_parts;
+            tp.part_cut_weights[part] =
+              pulp->max_c * avg_cut_size /
+              ((double)pulp->part_cut_sizes[part] + multiplier*(double)pulp->part_cut_size_changes[part]) - 1.0;
+            tp.part_cut_weights[max_part] =
+              pulp->max_c * avg_cut_size /
+              ((double)pulp->part_cut_sizes[max_part] + multiplier*(double)pulp->part_cut_size_changes[max_part]) - 1.0;
+          }
+
+
+          //if (tp.part_weights[w][part] < 0.0)
+          //  tp.part_weights[w][part] = 0.0;
+          //if (tp.part_weights[w][max_part] < 0.0)
+          //  tp.part_weights[w][max_part] = 0.0;
         }
 
         pulp->local_parts[vert_index] = max_part;
@@ -303,10 +381,34 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 {
     clear_recvbuf_vid_data(comm);
 
+    //for (uint64_t w = 0; w < g->num_weights; ++w)
+    //  for (int32_t p = 0; p < pulp->num_parts; ++p)
+    //    pulp->part_sizes[w][p] += pulp->part_size_changes[w][p];
+
     for (uint64_t w = 0; w < g->num_weights; ++w)
       MPI_Allreduce(MPI_IN_PLACE, pulp->part_size_changes[w], pulp->num_parts, 
         MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+
+    if (balance_cut) {
+      MPI_Allreduce(MPI_IN_PLACE, pulp->part_cut_size_changes, pulp->num_parts,
+        MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &pulp->cut_size_change, 1,
+        MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
     
+      pulp->avg_cut_size = (double)pulp->cut_size / (double)pulp->num_parts;
+      for (int32_t p = 0; p < pulp->num_parts; ++p) {
+        pulp->part_cut_sizes[p] += pulp->part_cut_size_changes[p];
+        pulp->part_cut_size_changes[p] = 0;
+        if (balance_cut) {
+          if ((double)pulp->part_cut_sizes[p] / pulp->avg_cut_size > pulp->max_c)
+            pulp->max_c = (double)pulp->part_cut_sizes[p] / pulp->avg_cut_size;
+          tp.part_cut_weights[p] = pulp->max_c * pulp->avg_cut_size / (double)pulp->part_cut_sizes[p] - 1.0;
+        }
+      }
+    }
+
+  //update_pulp_data_weighted(g, pulp);
+    //uint64_t num_balanced = 0;
     for (uint64_t w = 0; w < g->num_weights; ++w) {
       //pulp->maxes[w] = 0.0;
       for (int32_t p = 0; p < pulp->num_parts; ++p) {
@@ -317,11 +419,12 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
           pulp->maxes[w] = (double)pulp->part_sizes[w][p] / pulp->avg_sizes[w];
       }
 
-      pulp->weight_exponents[w] = pulp->maxes[w] / constraints[w];
-      if (pulp->maxes[w] < constraints[w])
+      pulp->weight_exponents[w] *= pulp->maxes[w] / constraints[w];
+      if (pulp->maxes[w] <= constraints[w]*1.01)
       {
         pulp->maxes[w] = constraints[w];
         pulp->weight_exponents[w] = 1.0;
+        //++num_balanced;
       }
     }
 
@@ -330,6 +433,19 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
     if (debug) printf("Task %d num_swapped_1 %lu \n", procid, num_swapped_1);
     num_swapped_1 = 0;
+    //update_pulp_data_weighted(g, pulp);
+
+    // if (num_balanced == g->num_weights)
+    //   balance_achieved = true;
+
+    // MPI_Allreduce(MPI_IN_PLACE, &balance_achieved, 1, 
+    //               MPI::BOOL, MPI_LOR, MPI_COMM_WORLD);
+
+    // if (balance_achieved) {
+    //   cur_outer_iter = outer_iter;
+    //   cur_bal_iter = balance_iter;
+    // }
+
 }
 
   }// end balance loop
@@ -337,10 +453,16 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
 #pragma omp single
 {  
-  part_eval_weighted(g, pulp);
+  //part_eval_weighted(g, pulp);
   update_pulp_data_weighted(g, pulp);
   if (procid == 0) printf("EVAL refine ------------------------------\n");
   num_swapped_2 = 0;
+
+  // if (balance_achieved) {
+  //   cur_iter = tot_iter;
+  //   multiplier = (double)nprocs*( (X - Y)*(cur_iter/tot_iter) + Y );
+  //   refine_iter *= 3;
+  // }
 }
 
 
@@ -400,10 +522,13 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
           new_size = 
               pulp->part_size_changes[w][max_part] + (int64_t)vert_weight < 0 ? pulp->part_sizes[w][max_part] + pulp->part_size_changes[w][max_part] + (int64_t)vert_weight :
-              (int64_t)((double)pulp->part_sizes[w][max_part] + multiplier*(double)pulp->part_size_changes[w][max_part] + (double)vert_weight);
+              (int64_t)((double)pulp->part_sizes[w][max_part] + fabs(multiplier*(double)pulp->part_size_changes[w][max_part]) + (double)vert_weight);
 
           //if (new_size > (int64_t)(pulp->avg_sizes[w]*constraints[w]))
-          if (new_size > (int64_t)(pulp->avg_sizes[w]*pulp->maxes[w]))
+
+          double max_imb = pulp->maxes[w] > constraints[w] ? 
+                              pulp->maxes[w] : constraints[w];
+          if (new_size > (int64_t)(pulp->avg_sizes[w]*max_imb))
             change = false;
         }
 
@@ -454,7 +579,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
 #pragma omp single
 {
-    init_sendbuf_vid_data(comm);    
+    init_sendbuf_vid_data(comm);
 }
 
 #pragma omp for schedule(guided) nowait
@@ -472,7 +597,6 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 {
     exchange_vert_data(g, comm, q);
 } // end single
-
 
 #pragma omp for
     for (uint64_t i = 0; i < comm->total_recv; ++i)
@@ -507,11 +631,14 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       }
     }
 
-    cur_iter += 1.0;
-    multiplier = (double)nprocs*( (X - Y)*(cur_iter/tot_iter) + Y );
+    // if (!balance_achieved) {
+      cur_iter += 1.0;
+      multiplier = (double)nprocs*( (X - Y)*(cur_iter/tot_iter) + Y );
+    // }
 
     if (debug) printf("Task %d num_swapped_2 %lu \n", procid, num_swapped_2);
     num_swapped_2 = 0;
+    //update_pulp_data_weighted(g, pulp);
 }
 
   } // end refine iter

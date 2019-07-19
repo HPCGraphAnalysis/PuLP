@@ -462,12 +462,13 @@ void pulp_init_bfs_pull(
 }
 
 
-//#define MAX_IMBALANCE 4
+#define MAX_IMBALANCE 1.5
 
 void pulp_init_bfs_max(
   dist_graph_t* g, mpi_data_t* comm, queue_data_t* q, pulp_data_t* pulp)
 {
-  int64_t max_part_size = int64_t( (double)(g->n / pulp->num_parts) * sqrt((double)pulp->num_parts) );
+  //int64_t max_part_size = int64_t( (double)(g->n / pulp->num_parts) * sqrt((double)pulp->num_parts) );
+  int64_t max_part_size = int64_t( (double)(g->n / pulp->num_parts) * MAX_IMBALANCE );
 
 #pragma omp parallel
 {

@@ -93,6 +93,7 @@ struct dist_graph_t {
   int32_t* vertex_weights;
   int32_t* edge_weights;
   int64_t* vertex_weights_sums;
+  int32_t* max_weights;
   uint64_t num_weights;
 
   uint64_t* local_unmap;

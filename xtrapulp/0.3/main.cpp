@@ -129,8 +129,8 @@ int main(int argc, char **argv)
   int32_t num_parts = atoi(argv[2]);
   double vert_balance = 1.1;
   double edge_balance = 1.1;
-  double constraints[] = {1.05, 2.0};
-  int num_weights = 2;
+  double constraints[] = {1.1, 1.1, 1.1};
+  int num_weights = 3;
 
   uint64_t num_runs = 1;
   bool output_time = true;
@@ -259,16 +259,15 @@ int main(int argc, char **argv)
     exchange_edges(&ggi, &comm);
     create_graph(&ggi, &g);
     relabel_edges(&g);
-    set_weights_graph(&g);
   }
   else
   {
     create_graph_serial(&ggi, &g);
-    set_weights_graph(&g);
   }
   queue_data_t q;
   init_queue_data(&g, &q);
   get_ghost_degrees(&g, &comm, &q);
+  set_weights_graph(&g);
 
   pulp_data_t pulp;
   init_pulp_data(&g, &pulp, num_parts);
@@ -294,7 +293,7 @@ int main(int argc, char **argv)
 
     if (output_quality)
     {
-      part_eval(&g, &pulp);
+      part_eval_weighted(&g, &pulp);
       //if (procid == 0)
       //  printf("&&& XtraPuLP, %s, %d, %2.3lf, %2.3lf, %li, %li\n", 
       //   graphname, num_parts, pulp.max_v, pulp.max_e, 

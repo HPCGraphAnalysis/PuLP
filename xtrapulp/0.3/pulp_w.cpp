@@ -70,11 +70,10 @@ extern bool verbose, debug, verify;
 extern float X,Y;
 
 
-int pulp_w(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
-            pulp_data_t *pulp,            
-            uint64_t outer_iter, 
-            uint64_t balance_iter, uint64_t refine_iter, 
-            uint64_t weight_index, double* constraints)
+int pulp_w(
+  dist_graph_t* g, mpi_data_t* comm, queue_data_t* q, pulp_data_t *pulp,
+  uint64_t outer_iter, uint64_t balance_iter, uint64_t refine_iter, 
+  double* constraints)
 { 
   if (debug) { printf("Task %d pulp_v_weighted() start\n", procid); }
   double elt = 0.0;
@@ -153,9 +152,6 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
         tp.part_weights[w][p] = 
             constraints[w] * pulp->avg_sizes[w] / 
             (double)pulp->part_sizes[w][p] - 1.0;
-            //((double)pulp->part_sizes[w][p] + multiplier*(double)pulp->part_size_changes[w][p]) - 1.0;
-        //if (tp.part_weights[w][p] < 0.0)
-        //  tp.part_weights[w][p] = 0.0;
       }
       //if (omp_get_thread_num() == 0) 
       //  printf("%d, %lu %lu %lf %lf\n", 
@@ -174,11 +170,6 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
     for (uint64_t vert_index = 0; vert_index < g->n_local; ++vert_index)
     {
       int32_t part = pulp->local_parts[vert_index];
-      //int32_t vert_weight = 
-      //    g->vertex_weights[vert_index*g->num_weights + weight_index];
-      //double weight_sum = 0.0;
-      //for (uint64_t w = 0; w < g->num_weights; ++w)
-      // weight_sum *= g->vertex_weights[vert_index*g->num_weights + w];
 
       for (int32_t p = 0; p < pulp->num_parts; ++p)
         tp.part_counts[p] = 0.0;
@@ -190,13 +181,8 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
         uint64_t out_index = outs[j];
         int32_t part_out = pulp->local_parts[out_index];
         double weight_out = (double)weights[j];
-        //tp.part_counts[part_out] += weight_sum * weight_out;
         tp.part_counts[part_out] += weight_out;
-        // if (out_index >= g->n_local) {
-        //   tp.part_counts[part_out] += weight_sum * weight_out;
-        // } else {
-        //   tp.part_counts[part_out] += weight_sum * weight_out;
-        // }
+
       }
       //printf("%d %lu %li %li %d\n", procid, vert_index, g->vertex_weights[vert_index*g->num_weights + weight_index], g->vertex_weights[vert_index*g->num_weights + weight_index+1], weights[0]);
 
@@ -219,27 +205,8 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
               (tp.part_weights[w][p] - tp.part_weights[w][part])*
                 vert_weight*pulp->weight_exponents[w]; 
           sum_gain += gain;
-          //if (gain > best_gain) {
-          //  gain = best_gain;
-          //  best_gain_part = p;
-          //}
-
-          // if (gain == best_gain && gain != 0.0) {
-          //   tp.part_counts[num_max++] = (double)p;
-          // } else if (gain > best_gain) {
-          //   best_gain = gain;
-          //   max_part = p;
-          //   num_max = 0;
-          //   tp.part_counts[num_max++] = (double)p;
-          // }
-          //int32_t vert_weight = 
-          //    g->vertex_weights[vert_index*g->num_weights + w];
-          //if (tp.part_weights[w][p] > 0.0)//(double)vert_weight*
-          //tp.part_weights[w][p]*pulp->weight_exponents[w];
-          //else
-          // tp.part_counts[p] = 0.0;
         }
-          //if (gain > 0.0)
+
         tp.part_counts[p] *= sum_gain;
         if (balance_cut * tp.part_cut_weights[p] > 0.0)
           tp.part_counts[p] *= tp.part_cut_weights[p];
@@ -287,10 +254,6 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
           pulp->part_size_changes[w][part] -= vert_weight;
       #pragma omp atomic
           pulp->part_size_changes[w][max_part] += vert_weight;
-      // #pragma omp atomic
-      //     pulp->part_sizes[w][part] -= vert_weight;
-      // #pragma omp atomic
-      //     pulp->part_sizes[w][max_part] += vert_weight;
         }
         
         for (uint64_t w = 0; w < g->num_weights; ++w) {
@@ -517,7 +480,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
         for (uint64_t w = 0; w < g->num_weights; ++w) {
           int32_t vert_weight = 
-            g->vertex_weights[vert_index*g->num_weights + weight_index];
+            g->vertex_weights[vert_index*g->num_weights + w];
           int64_t new_size = (int64_t)pulp->avg_sizes[w];
 
           new_size = 

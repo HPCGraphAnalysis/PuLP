@@ -182,6 +182,7 @@ int main(int argc, char **argv)
       case 's':
         pulp_seed = atoi(optarg);
         break;
+      // Below is for testing only
       /*case 'r':
         gen_rmat = true;
         gen_n = strtoul(optarg, NULL, 10);
@@ -247,11 +248,12 @@ int main(int argc, char **argv)
   }
   else
   {
-    if (procid == 0) printf("Reading in graphfile %s\n", input_filename);
     double elt = omp_get_wtime();
+    if (procid == 0) printf("Reading in graphfile %s\n", input_filename);
     strcat(graphname, input_filename);
     load_graph_edges_32(input_filename, &ggi, offset_vids);
-    if (procid == 0) printf("Reading Finished: %9.6lf (s)\n", omp_get_wtime() - elt);
+    elt = omp_get_wtime() - elt;
+    if (procid == 0) printf("Reading Finished: %9.6lf (s)\n", elt);
   }
 
   if (nprocs > 1)
@@ -281,19 +283,22 @@ int main(int argc, char **argv)
       if (procid == 0) printf("Reading in parts file %s\n", parts_in);
       elt = omp_get_wtime();
       read_parts(parts_in, &g, &pulp, offset_vids);
-      if (procid == 0) printf("Reading Finished: %9.6lf (s)\n", omp_get_wtime() - elt);
+      elt = omp_get_wtime() - elt;
+      if (procid == 0) printf("Reading Finished: %9.6lf (s)\n", elt);
     }
 
     if (procid == 0) printf("Starting Partitioning\n");
     elt = omp_get_wtime();
     xtrapulp(&g, &ppc, &comm, &pulp, &q);
     total_elt += omp_get_wtime() - elt;
+    elt = omp_get_wtime() - elt;
     if (procid == 0) printf("Partitioning Finished\n");
-    if (procid == 0) printf("XtraPuLP Time: %9.6lf (s)\n", omp_get_wtime() - elt);
+    if (procid == 0) printf("XtraPuLP Time: %9.6lf (s)\n", elt);
 
     if (output_quality)
     {
       part_eval_weighted(&g, &pulp);
+      // For testing
       //if (procid == 0)
       //  printf("&&& XtraPuLP, %s, %d, %2.3lf, %2.3lf, %li, %li\n", 
       //   graphname, num_parts, pulp.max_v, pulp.max_e, 

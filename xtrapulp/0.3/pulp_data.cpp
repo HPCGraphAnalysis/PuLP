@@ -54,6 +54,21 @@
 extern int procid, nprocs;
 extern bool verbose, debug, verify;
 
+
+void init_thread_pulp(thread_pulp_t* tp, pulp_data_t* pulp)
+{  
+  //if (debug) printf("Task %d init_thread_pulp() start\n", procid); 
+
+  tp->part_counts = (double*)malloc(pulp->num_parts*sizeof(double));
+  tp->part_weights = NULL;
+  tp->part_vert_weights = (double*)malloc(pulp->num_parts*sizeof(double));
+  tp->part_edge_weights = (double*)malloc(pulp->num_parts*sizeof(double));
+  tp->part_cut_weights = (double*)malloc(pulp->num_parts*sizeof(double));
+ 
+  //if (debug) printf("Task %d init_thread_pulp() success\n", procid);
+}
+
+
 void init_thread_pulp(thread_pulp_t* tp, pulp_data_t* pulp, 
   uint64_t num_weights)
 {  
@@ -63,70 +78,200 @@ void init_thread_pulp(thread_pulp_t* tp, pulp_data_t* pulp,
   tp->part_weights = (double**)malloc(num_weights*sizeof(double*));
   for (uint64_t w = 0; w < num_weights; ++w)
     tp->part_weights[w] = (double*)malloc(pulp->num_parts*sizeof(double));
-  tp->part_edge_weights = (double*)malloc(pulp->num_parts*sizeof(double));
+  tp->part_vert_weights = NULL;
+  tp->part_edge_weights = NULL;
   tp->part_cut_weights = (double*)malloc(pulp->num_parts*sizeof(double));
  
   //if (debug) printf("Task %d init_thread_pulp() success\n", procid);
 }
+
 
 void clear_thread_pulp(thread_pulp_t* tp)
 {
   //if (debug) printf("Task %d clear_thread_pulp() start\n", procid); 
 
   free(tp->part_counts);
-  free(tp->part_weights);
-  free(tp->part_edge_weights);
+  if (tp->part_weights != NULL) {
+    free(tp->part_weights);
+  } else {
+    free(tp->part_vert_weights);
+    free(tp->part_edge_weights);
+  }
   free(tp->part_cut_weights);
 
   //if (debug) printf("Task %d clear_thread_pulp() success\n", procid);
 }
 
-void init_pulp_data(dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts)
+
+void init_pulp_data(
+  dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts)
 {
   if (debug) printf("Task %d init_pulp_data() start\n", procid); 
 
   pulp->num_parts = num_parts;
-  pulp->avg_sizes = (double*)malloc(g->num_weights*sizeof(double));
-
-  for (uint64_t w = 0; w < g->num_weights; ++w) {
-    pulp->avg_sizes[w] = 
-        (double)g->vertex_weights_sums[w] / (double)pulp->num_parts;
-  }
+  pulp->avg_vert_size = (double)g->n / (double)pulp->num_parts;
   pulp->avg_edge_size = (double)g->m*2 / (double)pulp->num_parts;
   pulp->avg_cut_size = 0.0;
   pulp->max_v = 0.0;
   pulp->max_e = 1.0;
   pulp->max_c = 1.0;
-  pulp->maxes = (double*)malloc(g->num_weights*sizeof(double));
   pulp->weight_exponent_e = 1.0;
   pulp->weight_exponent_c = 1.0;
+
+  // used for pulp_w only ////
+  pulp->maxes = NULL;
+  pulp->avg_sizes = NULL;
+  pulp->part_sizes = NULL;
+  pulp->part_size_changes = NULL;
+  ////////////////////////////
+
+  pulp->local_parts = (int32_t*)malloc(g->n_total*sizeof(int32_t));  
+  pulp->part_vert_sizes = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
+  pulp->part_edge_sizes = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
+  pulp->part_cut_sizes = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
+  pulp->part_edge_size_changes = 
+    (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
+  pulp->part_cut_size_changes = 
+    (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
+  pulp->part_vert_size_changes = 
+    (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));    
+  if (pulp->local_parts == NULL || 
+      pulp->part_vert_sizes == NULL || 
+      pulp->part_edge_sizes == NULL ||
+      pulp->part_cut_sizes == NULL || 
+      pulp->part_vert_size_changes == NULL || 
+      pulp->part_edge_size_changes == NULL ||
+      pulp->part_cut_size_changes == NULL)
+    throw_err("init_pulp_data(), unable to allocate resources", procid);
+
+  pulp->cut_size = 0;
+  pulp->max_cut = 0;
+  pulp->cut_size_change = 0;
+
+  for (int32_t p = 0; p < pulp->num_parts; ++p)
+    pulp->part_vert_sizes[p] = 0;
+  for (int32_t p = 0; p < pulp->num_parts; ++p)
+    pulp->part_vert_size_changes[p] = 0;
+
+  for (int32_t p = 0; p < pulp->num_parts; ++p)
+    pulp->part_edge_sizes[p] = 0;
+  for (int32_t p = 0; p < pulp->num_parts; ++p)
+    pulp->part_edge_size_changes[p] = 0;
+
+  for (int32_t p = 0; p < pulp->num_parts; ++p)
+    pulp->part_cut_sizes[p] = 0;
+  for (int32_t p = 0; p < pulp->num_parts; ++p)
+    pulp->part_cut_size_changes[p] = 0;
+  
+  if (debug) printf("Task %d init_pulp_data() success\n", procid);
+}
+
+
+void update_pulp_data(dist_graph_t* g, pulp_data_t* pulp)
+{
+  for (int32_t p = 0; p < pulp->num_parts; ++p)
+  {
+    pulp->part_edge_sizes[p] = 0;
+    pulp->part_cut_sizes[p] = 0;
+    pulp->part_edge_size_changes[p] = 0;
+    pulp->part_cut_size_changes[p] = 0;
+  }
+  pulp->cut_size = 0;
+
+  for (uint64_t i = 0; i < g->n_local; ++i)
+  {
+    uint64_t vert_index = i;
+    int32_t part = pulp->local_parts[vert_index];
+    uint64_t out_degree = out_degree(g, vert_index);
+    uint64_t* outs = out_vertices(g, vert_index);
+    pulp->part_vert_sizes[part] += 1;
+    pulp->part_edge_sizes[part] += (int64_t)out_degree;
+    for (uint64_t j = 0; j < out_degree; ++j)
+    {
+      uint64_t out_index = outs[j];
+      int32_t part_out = pulp->local_parts[out_index];
+      if (part_out != part)
+      {
+        pulp->part_cut_sizes[part] += 1;
+        pulp->cut_size += 1;
+      }
+    }
+  }
+
+  MPI_Allreduce(MPI_IN_PLACE, pulp->part_vert_sizes, pulp->num_parts,
+    MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, pulp->part_edge_sizes, pulp->num_parts,
+    MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, pulp->part_cut_sizes, pulp->num_parts,
+    MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &pulp->cut_size, 1,
+    MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+  pulp->cut_size /= 2;
+  pulp->avg_cut_size = (double)pulp->cut_size / (double)pulp->num_parts;
+
+  pulp->max_v = 0;
+  pulp->max_e = 0;
+  pulp->max_c = 0;
+  pulp->max_cut = 0;
+  for (int32_t p = 0; p < pulp->num_parts; ++p)
+  {
+    if ((double)pulp->part_vert_sizes[p] / pulp->avg_vert_size > pulp->max_v)
+      pulp->max_v = (double)pulp->part_vert_sizes[p] / pulp->avg_vert_size;
+    if ((double)pulp->part_edge_sizes[p] / pulp->avg_edge_size > pulp->max_e)
+      pulp->max_e = (double)pulp->part_edge_sizes[p] / pulp->avg_edge_size;
+    if ((double)pulp->part_cut_sizes[p] / pulp->avg_cut_size > pulp->max_c)
+      pulp->max_c = (double)pulp->part_cut_sizes[p] / pulp->avg_cut_size;
+    if (pulp->part_cut_sizes[p] > pulp->max_cut)
+      pulp->max_cut = pulp->part_cut_sizes[p];
+  }
+}
+
+
+void init_pulp_data_weighted(
+  dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts)
+{
+  if (debug) printf("Task %d init_pulp_data() start\n", procid); 
+
+  pulp->num_parts = num_parts;
+  pulp->avg_sizes = (double*)malloc(g->num_weights*sizeof(double));
+  for (uint64_t w = 0; w < g->num_weights; ++w) {
+    pulp->avg_sizes[w] = 
+        (double)g->vertex_weights_sums[w] / (double)pulp->num_parts;
+  }
+  pulp->avg_cut_size = 0.0;
+  pulp->max_c = 1.0;
+  pulp->maxes = (double*)malloc(g->num_weights*sizeof(double));
+  pulp->weight_exponent_c = 1.0;
   pulp->weight_exponents = (double*)malloc(g->num_weights*sizeof(double));
-  pulp->running_max_v = 1.0;
-  pulp->running_max_e = 1.0;
-  pulp->running_max_c = 1.0;
+
+  // used in pulp_mm only //////////////
+  pulp->avg_vert_size = 0;
+  pulp->avg_edge_size = 0;
+  pulp->max_v = 0.0;
+  pulp->max_e = 0.0;
+  pulp->weight_exponent_e = 0.0;
+  pulp->part_vert_sizes = NULL;
+  pulp->part_edge_sizes = NULL;
+  pulp->part_vert_size_changes = NULL;
+  pulp->part_edge_size_changes = NULL;
+  //////////////////////////////////////
 
   pulp->local_parts = (int32_t*)malloc(g->n_total*sizeof(int32_t));
-
   pulp->part_sizes = (int64_t**)malloc(g->num_weights*sizeof(int64_t*));
   for (uint64_t w = 0; w < g->num_weights; ++w)
     pulp->part_sizes[w] = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
   
-  pulp->part_size_changes = 
-      (int64_t**)malloc(g->num_weights*sizeof(int64_t*));
+  pulp->part_size_changes = (int64_t**)malloc(g->num_weights*sizeof(int64_t*));
   for (uint64_t w = 0; w < g->num_weights; ++w)
     pulp->part_size_changes[w] = 
         (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
 
-
-  pulp->part_edge_sizes = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
   pulp->part_cut_sizes = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
-
-  pulp->part_edge_size_changes = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
   pulp->part_cut_size_changes = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
   if (pulp->local_parts == NULL || 
-      pulp->part_sizes == NULL || pulp->part_edge_sizes == NULL ||
+      pulp->part_sizes == NULL || 
       pulp->part_cut_sizes == NULL || 
-      pulp->part_size_changes == NULL || pulp->part_edge_size_changes == NULL ||
+      pulp->part_size_changes == NULL || 
       pulp->part_cut_size_changes == NULL)
     throw_err("init_pulp_data(), unable to allocate resources", procid);
 
@@ -142,11 +287,7 @@ void init_pulp_data(dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts)
       pulp->part_size_changes[w][p] = 0;
 
   for (int32_t p = 0; p < pulp->num_parts; ++p)
-    pulp->part_edge_sizes[p] = 0;
-  for (int32_t p = 0; p < pulp->num_parts; ++p)
     pulp->part_cut_sizes[p] = 0;
-  for (int32_t p = 0; p < pulp->num_parts; ++p)
-    pulp->part_edge_size_changes[p] = 0;
   for (int32_t p = 0; p < pulp->num_parts; ++p)
     pulp->part_cut_size_changes[p] = 0;
   
@@ -162,10 +303,7 @@ void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp)
       pulp->part_sizes[w][p] = 0;
       pulp->part_size_changes[w][p] = 0;
     }
-
-    pulp->part_edge_sizes[p] = 0;
     pulp->part_cut_sizes[p] = 0;
-    pulp->part_edge_size_changes[p] = 0;
     pulp->part_cut_size_changes[p] = 0;
   }
   pulp->cut_size = 0;
@@ -182,7 +320,6 @@ void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp)
     uint64_t out_degree = out_degree(g, vert_index);
     uint64_t* outs = out_vertices(g, vert_index);
     int32_t* weights = out_weights(g, vert_index);
-    pulp->part_edge_sizes[part] += (int64_t)out_degree;
     for (uint64_t j = 0; j < out_degree; ++j)
     {
       uint64_t out_index = outs[j];
@@ -195,13 +332,9 @@ void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp)
     }
   }
 
-
   for (uint64_t w = 0; w < g->num_weights; ++w)
     MPI_Allreduce(MPI_IN_PLACE, pulp->part_sizes[w], pulp->num_parts, 
         MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
-
-  MPI_Allreduce(MPI_IN_PLACE, pulp->part_edge_sizes, pulp->num_parts,
-    MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, pulp->part_cut_sizes, pulp->num_parts,
     MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &pulp->cut_size, 1,
@@ -209,18 +342,10 @@ void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp)
   pulp->cut_size /= 2;
   pulp->avg_cut_size = (double)pulp->cut_size / (double)pulp->num_parts;
 
-  pulp->max_v = 0;
-  pulp->max_e = 0;
   pulp->max_c = 0;
   pulp->max_cut = 0;
   for (int32_t p = 0; p < pulp->num_parts; ++p)
   {
-    /*if ((double)pulp->part_sizes[p] / pulp->avg_sizes[weight_index] > 
-        pulp->max_v)
-      pulp->max_v = 
-          (double)pulp->part_sizes[p] / pulp->avg_sizes[weight_index];*/
-    if ((double)pulp->part_edge_sizes[p] / pulp->avg_edge_size > pulp->max_e)
-      pulp->max_e = (double)pulp->part_edge_sizes[p] / pulp->avg_edge_size;
     if ((double)pulp->part_cut_sizes[p] / pulp->avg_cut_size > pulp->max_c)
       pulp->max_c = (double)pulp->part_cut_sizes[p] / pulp->avg_cut_size;
     if (pulp->part_cut_sizes[p] > pulp->max_cut)

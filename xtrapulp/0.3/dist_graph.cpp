@@ -114,8 +114,11 @@ int create_graph(graph_gen_data_t *ggi, dist_graph_t *g)
     throw_err("create_graph(), unable to allocate unmap", procid);
 
 #pragma omp parallel for
-  for (uint64_t i = 0; i < g->n_local; ++i)
+  for (uint64_t i = 0; i < g->n_local; ++i) {
     g->local_unmap[i] = i + g->n_offset;
+    if (g->local_unmap[i] >= g->n)
+      g->local_unmap[i] = g->n-1;
+  }
 
   if (verbose) {
     elt = omp_get_wtime() - elt;
@@ -413,6 +416,7 @@ int relabel_edges(dist_graph_t *g, uint64_t* vert_dist)
 }
 
 
+// Below is for testing only
 int set_weights_graph(dist_graph_t *g)
 {
   if (debug) { printf("Task %d set_weights_graph() start\n", procid); }
@@ -422,7 +426,7 @@ int set_weights_graph(dist_graph_t *g)
     elt = omp_get_wtime();
   }
 
-  g->num_weights = 3;
+  g->num_weights = 2;
   g->vertex_weights = 
       (int32_t*)malloc(g->num_weights*g->n_local*sizeof(int32_t));
   g->edge_weights = (int32_t*)malloc(g->m_local*2*sizeof(int32_t));
@@ -434,7 +438,6 @@ int set_weights_graph(dist_graph_t *g)
     g->vertex_weights_sums[w] = 0;
   }
 
-//#pragma omp parallel for
   for (uint64_t v = 0; v < g->n_local; ++v) {
     g->vertex_weights[v*g->num_weights] = 1;
     g->vertex_weights[v*g->num_weights+1] = (int32_t)out_degree(g, v);
@@ -443,6 +446,7 @@ int set_weights_graph(dist_graph_t *g)
     if ((int32_t)out_degree(g, v) > g->max_weights[1])
       g->max_weights[1] = (int32_t)out_degree(g, v);
 
+    if (g->num_weights > 2) {
     uint64_t sum_neighbors = 0;
     uint64_t* outs = out_vertices(g, v);
     for (uint64_t i = 0; i < out_degree(g, v); ++i)
@@ -455,6 +459,7 @@ int set_weights_graph(dist_graph_t *g)
     g->vertex_weights_sums[2] += sum_neighbors;
     if (sum_neighbors > g->max_weights[2])
       g->max_weights[2] = sum_neighbors;
+    }
   }
 
   for (uint64_t w = 0; w < g->num_weights; ++w) {
@@ -467,7 +472,7 @@ int set_weights_graph(dist_graph_t *g)
 
 #pragma omp parallel for
   for (uint64_t e = 0; e < g->m_local*2; ++e)
-    g->edge_weights[e] = 1.0;
+    g->edge_weights[e] = 1;
 
   if (verbose) {
     elt = omp_get_wtime() - elt;

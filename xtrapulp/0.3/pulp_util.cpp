@@ -469,7 +469,7 @@ int output_parts(const char* filename, dist_graph_t* g,
 
 #pragma omp parallel for
   for (uint64_t i = 0; i < g->n_local; ++i)
-    if (offset_vids)
+    /*if (offset_vids)
     {
       uint64_t task_id = g->local_unmap[i] - g->n_offset;
       uint64_t task = (uint64_t)procid;
@@ -477,8 +477,10 @@ int output_parts(const char* filename, dist_graph_t* g,
       if (global_id < g->n)
         global_parts[global_id] = parts[i];
     }
-    else
+    else */{
+      assert(g->local_unmap[i] < g->n);
       global_parts[g->local_unmap[i]] = parts[i];
+    }
 
   if (procid == 0)
     MPI_Reduce(MPI_IN_PLACE, global_parts, (int32_t)g->n,
@@ -498,10 +500,14 @@ int output_parts(const char* filename, dist_graph_t* g,
         }
         
     std::ofstream outfile;
-    outfile.open(filename);
+    //outfile.open(filename);
 
-    for (uint64_t i = 0; i < g->n; ++i)
-      outfile << global_parts[i] << std::endl;
+    //for (uint64_t i = 0; i < g->n; ++i)
+    //  outfile << global_parts[i] << std::endl;
+
+    FILE* fp = fopen(filename, "wb");
+    fwrite(global_parts, sizeof(int32_t), g->n, fp);
+    fclose(fp);
 
     outfile.close();
   }

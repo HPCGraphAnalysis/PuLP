@@ -42,90 +42,34 @@
 // *****************************************************************************
 //@HEADER
 */
-#ifndef __XTRAPULP_H__
-#define __XTRAPULP_H__
 
-#include <stdint.h>
+#ifndef _PULP_MM_H_
+#define _PULP_MM_H_
 
-//typedef int64_t pulp_int;
-//typedef double pulp_real;
+#include "dist_graph.h"
+#include "comms.h"
+#include "pulp_data.h"
 
-struct mpi_data_t;
-struct pulp_data_t;
-struct queue_data_t;
-struct fast_map;
+#define CUT_CHANGE 0.95
+#define BAL_CHANGE 0.95
+#define BAL_CUTOFF 1.05
 
-typedef struct {
-  double vert_balance;
-  double edge_balance;
-  double* constraints;
-  int num_weights;
+int pulp_v(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
+            pulp_data_t *pulp,            
+            uint64_t edge_outer_iter, 
+            uint64_t edge_balance_iter, uint64_t edge_refine_iter, 
+            double vert_balance, double edge_balance);
 
-  bool do_lp_init;
-  bool do_bfs_init;
-  bool do_repart;
-  bool do_edge_balance;
-  bool do_maxcut_balance;
+int pulp_ve(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
+            pulp_data_t *pulp,            
+            uint64_t edge_outer_iter, 
+            uint64_t edge_balance_iter, uint64_t edge_refine_iter, 
+            double vert_balance, double edge_balance);
 
-  bool verbose_output;
-
-  int pulp_seed;
-} pulp_part_control_t;
-
-
-struct dist_graph_t {
-  uint64_t n;
-  uint64_t m;
-  uint64_t m_local;
-
-  uint64_t n_local;
-  uint64_t n_offset;
-  uint64_t n_ghost;
-  uint64_t n_total;
-
-  uint64_t max_degree_vert;
-  uint64_t max_degree;
-
-  uint64_t* out_edges;
-  uint64_t* out_degree_list;
-  uint64_t* ghost_degrees;
-
-  int32_t* vertex_weights;
-  int32_t* edge_weights;
-  int64_t* vertex_weights_sums;
-  int32_t* max_weights;
-  uint64_t num_weights;
-
-  uint64_t* local_unmap;
-  uint64_t* ghost_unmap;
-  uint64_t* ghost_tasks;
-  fast_map* map;
-} ;
-#define out_degree(g, n) (g->out_degree_list[n+1] - g->out_degree_list[n])
-#define out_vertices(g, n) &g->out_edges[g->out_degree_list[n]]
-#define out_weights(g, n) &g->edge_weights[g->out_degree_list[n]]
-
-
-extern "C" int xtrapulp_run(
-  dist_graph_t* g, pulp_part_control_t* ppc, 
-  int* parts, int num_parts);
-
-extern "C" int xtrapulp(
-  dist_graph_t* g, pulp_part_control_t* ppc,
-  mpi_data_t* comm, pulp_data_t* pulp, queue_data_t* q);
-
-extern "C" int xtrapulp_weighted(
-  dist_graph_t* g, pulp_part_control_t* ppc,
-  mpi_data_t* comm, pulp_data_t* pulp, queue_data_t* q);
-
-extern "C" int create_xtrapulp_dist_graph(
-  dist_graph_t* g, 
-  unsigned long n_global, unsigned long m_global, 
-  unsigned long n_local, unsigned long m_local,
-  unsigned long* local_adjs, unsigned long* local_offsets,  
-  unsigned long* global_ids, unsigned long* vert_dist,
-  int num_weights, int* vertex_weights, int* edge_weights);
-
-double timer();
+int pulp_vec(dist_graph_t* g, mpi_data_t* comm, queue_data_t* q,
+            pulp_data_t *pulp,            
+            uint64_t edge_outer_iter, 
+            uint64_t edge_balance_iter, uint64_t edge_refine_iter, 
+            double vert_balance, double edge_balance);
 
 #endif

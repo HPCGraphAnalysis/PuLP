@@ -128,6 +128,8 @@ inline void set_value_uq(fast_map* map, uint64_t key, uint64_t value)
 
 inline uint64_t get_value(fast_map* map, uint64_t key)
 {
+  if (!map->hashing) return map->arr[key];
+  
   uint64_t cur_index = mult_hash(map, key)*2;
   while (map->arr[cur_index] != key && map->arr[cur_index] != NULL_KEY)
     cur_index = (cur_index + 2) % (map->capacity*2);

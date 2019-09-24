@@ -125,12 +125,13 @@ int main(int argc, char **argv)
   char* num_parts_str = strdup(argv[2]);
   char parts_out[1024]; parts_out[0] = '\0';
   char parts_in[1024]; parts_in[0] = '\0';
+  
   strcat(input_filename, argv[1]);
   int32_t num_parts = atoi(argv[2]);
   double vert_balance = 1.1;
   double edge_balance = 1.1;
   double constraints[] = {1.1, 1.1, 1.1};
-  int num_weights = 3;
+  bool adj_format = false;
 
   uint64_t num_runs = 1;
   bool output_time = true;
@@ -151,8 +152,11 @@ int main(int argc, char **argv)
   bool do_maxcut_balance = false;
 
   char c;
-  while ((c = getopt (argc, argv, "v:e:o:i:m:s:p:dlqtc")) != -1) {
+  while ((c = getopt (argc, argv, "v:e:o:i:m:s:p:dlqtca")) != -1) {
     switch (c) {
+      case 'a':
+        adj_format = true;
+        break;
       case 'h':
         print_usage_full(argv);
         break;
@@ -218,10 +222,6 @@ int main(int argc, char **argv)
 
   graph_gen_data_t ggi;
   dist_graph_t g;
-  pulp_part_control_t ppc = {vert_balance, edge_balance, 
-    constraints, num_weights, 
-    do_lp_init, do_bfs_init, do_repart, do_edge_balance, do_maxcut_balance,
-    false, pulp_seed};
 
   mpi_data_t comm;
   init_comm_data(&comm);
@@ -251,7 +251,12 @@ int main(int argc, char **argv)
     double elt = omp_get_wtime();
     if (procid == 0) printf("Reading in graphfile %s\n", input_filename);
     strcat(graphname, input_filename);
-    load_graph_edges_32(input_filename, &ggi, offset_vids);
+
+    if (adj_format)
+      read_graph(input_filename, &ggi, offset_vids);
+    else
+      load_graph_edges_32(input_filename, &ggi, offset_vids);
+
     elt = omp_get_wtime() - elt;
     if (procid == 0) printf("Reading Finished: %9.6lf (s)\n", elt);
   }
@@ -266,13 +271,20 @@ int main(int argc, char **argv)
   {
     create_graph_serial(&ggi, &g);
   }
+
   queue_data_t q;
   init_queue_data(&g, &q);
   get_ghost_degrees(&g, &comm, &q);
-  set_weights_graph(&g);
 
   pulp_data_t pulp;
   init_pulp_data(&g, &pulp, num_parts);
+  pulp_part_control_t ppc;
+  ppc = {
+    vert_balance, edge_balance, 
+    constraints, (int)g.num_vert_weights, 
+    do_lp_init, do_bfs_init, do_repart, 
+    do_edge_balance, do_maxcut_balance,
+    false, pulp_seed};
 
   double total_elt = 0.0;
   for (uint32_t i = 0; i < num_runs; ++i)
@@ -297,7 +309,10 @@ int main(int argc, char **argv)
 
     if (output_quality)
     {
-      part_eval_weighted(&g, &pulp);
+      if (g.num_vert_weights == 0)
+        part_eval(&g, &pulp);
+      else
+        part_eval_weighted(&g, &pulp);
       // For testing
       //if (procid == 0)
       //  printf("&&& XtraPuLP, %s, %d, %2.3lf, %2.3lf, %li, %li\n", 

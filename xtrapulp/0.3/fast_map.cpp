@@ -82,7 +82,7 @@ void init_map_nohash(fast_map* map, uint64_t init_size)
 {
   if (debug) { printf("Task %d init_map_nohash() start\n", procid); }
 
-  map->arr = (uint64_t*)malloc(init_size*2*sizeof(uint64_t));
+  map->arr = (uint64_t*)malloc(init_size*sizeof(uint64_t));
   map->unique_keys = (uint64_t*)malloc(init_size*sizeof(uint64_t));
   map->unique_indexes = (uint64_t*)malloc(init_size*sizeof(uint64_t));
   if (map->arr == NULL || map->unique_keys == NULL || 
@@ -95,7 +95,7 @@ void init_map_nohash(fast_map* map, uint64_t init_size)
 
 #pragma omp parallel for
   for (uint64_t i = 0; i < map->capacity; ++i)
-    map->arr[i*2] = NULL_KEY; 
+    map->arr[i] = i; 
   
   if (debug) { printf("Task %d init_map_nohash() success\n", procid); }
 }

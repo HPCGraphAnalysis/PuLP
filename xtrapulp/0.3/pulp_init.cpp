@@ -469,6 +469,16 @@ void pulp_init_bfs_max(
 {
   //int64_t max_part_size = int64_t( (double)(g->n / pulp->num_parts) * sqrt((double)pulp->num_parts) );
   int64_t max_part_size = int64_t( (double)(g->n / pulp->num_parts) * MAX_IMBALANCE );
+  int64_t* counts = NULL;
+  int64_t* changes = NULL;
+  if (g->num_vert_weights > 0) {
+    counts = pulp->part_sizes[0];
+    changes = pulp->part_size_changes[0];
+  } else {
+    counts = pulp->part_vert_sizes;
+    changes = pulp->part_vert_size_changes;
+  }
+
 
 #pragma omp parallel
 {
@@ -504,7 +514,7 @@ void pulp_init_bfs_max(
 
   for (int32_t i = 0; i < pulp->num_parts; ++i)
   {
-    pulp->part_sizes[0][i] = 1;
+    counts[i] = 1;
     uint64_t root = roots[i];
     uint64_t root_index = get_value(g->map, root);
 
@@ -547,7 +557,7 @@ void pulp_init_bfs_max(
         uint64_t out_index = outs[j];
         int32_t part_out = pulp->local_parts[out_index];
         if (part_out >= 0 && 
-            pulp->part_sizes[0][part_out] + pulp->part_size_changes[0][part_out] < max_part_size)
+            counts[part_out] + changes[part_out] < max_part_size)
         {
           pulp->local_parts[vert_index] = part_out;
           new_part = part_out;
@@ -561,7 +571,7 @@ void pulp_init_bfs_max(
         add_vid_to_queue(&tq, q, vert_index);
 
     #pragma omp atomic
-        ++pulp->part_size_changes[0][new_part];
+        ++changes[new_part];
       }
     }  
 
@@ -622,12 +632,12 @@ void pulp_init_bfs_max(
 {   
     clear_recvbuf_vid_data(comm);
 
-    MPI_Allreduce(MPI_IN_PLACE, pulp->part_size_changes[0], pulp->num_parts, 
+    MPI_Allreduce(MPI_IN_PLACE, changes, pulp->num_parts, 
       MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
     for (int32_t p = 0; p < pulp->num_parts; ++p)
     {
-      pulp->part_sizes[0][p] += pulp->part_size_changes[0][p];
-      pulp->part_size_changes[0][p] = 0;
+      counts[p] += changes[p];
+      changes[p] = 0;
     }
    
     if (debug) printf("Task %d send_size %lu global_size %lu\n", 
@@ -728,7 +738,7 @@ void pulp_init_label_prop_weighted(dist_graph_t* g,
 {
   if (debug) { printf("Task %d pulp_init_label_prop_weighted() start\n", procid); }
 
-  bool has_vwgts = (g->vertex_weights != NULL);
+  bool has_vwgts = (g->vert_weights != NULL);
   bool has_ewgts = (g->edge_weights != NULL);
 
   q->send_size = 0;
@@ -745,7 +755,7 @@ void pulp_init_label_prop_weighted(dist_graph_t* g,
   thread_pulp_t tp;
   init_thread_queue(&tq);
   init_thread_comm(&tc);
-  init_thread_pulp(&tp, pulp, g->num_weights);
+  init_thread_pulp(&tp, pulp, g->num_vert_weights);
 
   xs1024star_t xs;
   xs1024star_seed((uint64_t)(seed + omp_get_thread_num()), &xs);
@@ -811,7 +821,7 @@ for (uint64_t cur_iter = 0; cur_iter < lp_num_iter; ++cur_iter)
   {
     int32_t part = pulp->local_parts[vert_index];
     int32_t vert_weight = 1;
-    if (has_vwgts) vert_weight = g->vertex_weights[vert_index];
+    if (has_vwgts) vert_weight = g->vert_weights[vert_index];
 
     for (int32_t p = 0; p < pulp->num_parts; ++p)
       tp.part_counts[p] = 0.0;
@@ -970,7 +980,7 @@ void pulp_init_label_prop(dist_graph_t* g,
   thread_pulp_t tp;
   init_thread_queue(&tq);
   init_thread_comm(&tc);
-  init_thread_pulp(&tp, pulp, g->num_weights);
+  init_thread_pulp(&tp, pulp, g->num_vert_weights);
 
   xs1024star_t xs;
   xs1024star_seed((uint64_t)(seed + omp_get_thread_num()), &xs);

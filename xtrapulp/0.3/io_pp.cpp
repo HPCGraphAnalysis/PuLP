@@ -49,7 +49,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <fstream>
+#include <sstream>
 
+#include "xtrapulp.h"
+#include "pulp_util.h"
 #include "io_pp.h"
 #include "comms.h"
 #include "util.h"
@@ -88,6 +92,7 @@ int load_graph_edges_32(char *input_filename, graph_gen_data_t *ggi,
 
   uint64_t nedges = (read_offset_end - read_offset_start)/8;
   ggi->m_local_read = nedges;
+  ggi->m_local_edges = nedges;
 
   if (debug) {
     printf("Task %d, read_offset_start %ld, read_offset_end %ld, nedges_global %ld, nedges: %ld\n", procid, read_offset_start, read_offset_end, nedges_global, nedges);
@@ -114,33 +119,39 @@ int load_graph_edges_32(char *input_filename, graph_gen_data_t *ggi,
     printf("Task %d read %lu edges, %9.6f (s)\n", procid, nedges, elt);
   }
   
-  uint64_t max_n = 0;
+  uint64_t n_global = 0;
   for (uint64_t i = 0; i < ggi->m_local_read*2; ++i)
-    if (gen_edges[i] > max_n)
-      max_n = gen_edges[i];
+    if (gen_edges[i] > n_global)
+      n_global = gen_edges[i];
 
-  uint64_t n_global;
-  MPI_Allreduce(&max_n, &n_global, 1, MPI_UINT64_T, MPI_MAX, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &n_global, 1, 
+                MPI_UINT64_T, MPI_MAX, MPI_COMM_WORLD);
   
   ggi->n = n_global+1;
   ggi->n_offset = (uint64_t)procid * (ggi->n / (uint64_t)nprocs + 1);
   ggi->n_local = ggi->n / (uint64_t)nprocs + 1;
-  if (procid == nprocs - 1 && !offset_vids && !offset_vids)
+  if (procid == nprocs - 1 && !offset_vids)
     ggi->n_local = n_global - ggi->n_offset + 1; 
-
 
   if (offset_vids)
   {
-#pragma omp parallel for
+#pragma omp parallel for reduction(max:n_global)
     for (uint64_t i = 0; i < ggi->m_local_read*2; ++i)
     {
       uint64_t task_id = ggi->gen_edges[i] / (uint64_t)nprocs;
       uint64_t task = ggi->gen_edges[i] % (uint64_t)nprocs;
       uint64_t task_offset = task * (ggi->n / (uint64_t)nprocs + 1);
       uint64_t new_vid = task_offset + task_id;
-      new_vid = (new_vid >= ggi->n) ? (ggi->n - 1) : new_vid;
       ggi->gen_edges[i] = new_vid;
+      if (new_vid > n_global)
+        n_global = new_vid;
     }
+
+    MPI_Allreduce(MPI_IN_PLACE, &n_global, 1, 
+                  MPI_UINT64_T, MPI_MAX, MPI_COMM_WORLD);
+    ggi->n = n_global+1;
+    if (procid == nprocs - 1)
+      ggi->n_local = ggi->n - ggi->n_offset;
   }
 
   if (verbose) {
@@ -183,6 +194,7 @@ int load_graph_edges_64(char *input_filename, graph_gen_data_t *ggi,
 
   uint64_t nedges = (read_offset_end - read_offset_start)/8;
   ggi->m_local_read = nedges;
+  ggi->m_local_edges = nedges;
 
   if (debug) {
     printf("Task %d, read_offset_start %ld, read_offset_end %ld, nedges_global %ld, nedges: %ld\n", procid, read_offset_start, read_offset_end, nedges_global, nedges);
@@ -204,33 +216,39 @@ int load_graph_edges_64(char *input_filename, graph_gen_data_t *ggi,
     printf("Task %d read %lu edges, %9.6f (s)\n", procid, nedges, elt);
   }
   
-  uint64_t max_n = 0;
+  uint64_t n_global = 0;
   for (uint64_t i = 0; i < ggi->m_local_read*2; ++i)
-    if (gen_edges[i] > max_n)
-      max_n = gen_edges[i];
+    if (gen_edges[i] > n_global)
+      n_global = gen_edges[i];
 
-  uint64_t n_global;
-  MPI_Allreduce(&max_n, &n_global, 1, MPI_UINT64_T, MPI_MAX, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &n_global, 1, 
+                MPI_UINT64_T, MPI_MAX, MPI_COMM_WORLD);
   
   ggi->n = n_global+1;
   ggi->n_offset = (uint64_t)procid * (ggi->n / (uint64_t)nprocs + 1);
   ggi->n_local = ggi->n / (uint64_t)nprocs + 1;
-  if (procid == nprocs - 1 && !offset_vids && !offset_vids)
+  if (procid == nprocs - 1 && !offset_vids)
     ggi->n_local = n_global - ggi->n_offset + 1; 
-
 
   if (offset_vids)
   {
-#pragma omp parallel for
+#pragma omp parallel for reduction(max:n_global)
     for (uint64_t i = 0; i < ggi->m_local_read*2; ++i)
     {
       uint64_t task_id = ggi->gen_edges[i] / (uint64_t)nprocs;
       uint64_t task = ggi->gen_edges[i] % (uint64_t)nprocs;
       uint64_t task_offset = task * (ggi->n / (uint64_t)nprocs + 1);
       uint64_t new_vid = task_offset + task_id;
-      new_vid = (new_vid >= ggi->n) ? (ggi->n - 1) : new_vid;
       ggi->gen_edges[i] = new_vid;
+      if (new_vid > n_global)
+        n_global = new_vid;
     }
+
+    MPI_Allreduce(MPI_IN_PLACE, &n_global, 1, 
+                  MPI_UINT64_T, MPI_MAX, MPI_COMM_WORLD);
+    ggi->n = n_global+1;
+    if (procid == nprocs - 1)
+      ggi->n_local = ggi->n - ggi->n_offset;
   }
 
   if (verbose) {
@@ -241,6 +259,265 @@ int load_graph_edges_64(char *input_filename, graph_gen_data_t *ggi,
   if (debug) { printf("Task %d load_graph_edges() success\n", procid); }
   return 0;
 }
+
+
+int read_adj(char* input_filename, 
+  graph_gen_data_t *ggi, bool offset_vids)
+{
+  std::ifstream infile;
+  std::string line;
+  std::string val;
+
+  ggi->gen_edges = (uint64_t*)malloc(ggi->m*sizeof(uint64_t));
+  ggi->edge_weights_sum = 0;
+  ggi->max_edge_weight = 0;
+  if (ggi->num_edge_weights == 0 && ggi->num_vert_weights == 0) {
+    ggi->vert_weights = NULL;
+    ggi->edge_weights = NULL;
+    ggi->vert_weights_sums = NULL;
+  } else if (ggi->num_vert_weights == 0) {
+    ggi->vert_weights = (int32_t*)malloc(ggi->n*sizeof(int32_t));
+    ggi->vert_weights_sums = (int64_t*)malloc(sizeof(int64_t));
+    ggi->edge_weights = (int32_t*)malloc(ggi->m/2*sizeof(int32_t));
+  } else {
+    ggi->vert_weights = 
+        (int32_t*)malloc(ggi->num_vert_weights*ggi->n*sizeof(int32_t));
+    ggi->vert_weights_sums = 
+        (int64_t*)malloc(ggi->num_vert_weights*sizeof(int64_t));
+    ggi->edge_weights = (int32_t*)malloc(ggi->m/2*sizeof(int32_t));
+  }
+
+  uint64_t count = 0;     // count for edges
+  uint64_t cur_line = 1;  // count for vertices
+
+  infile.open(input_filename);
+  getline(infile, line);  // skip header
+
+  while (getline(infile, line))
+  {
+    uint64_t src = cur_line - 1;
+    uint64_t dst = NULL_KEY;
+    std::stringstream ss(line);
+
+    for (uint64_t w = 0; w < ggi->num_vert_weights; ++w) 
+    {
+      getline(ss, val, ' ');
+      int32_t weight = (int32_t)atoi(val.c_str());
+      ggi->vert_weights[(src * ggi->num_vert_weights) + w] = weight;
+      ggi->vert_weights_sums[w] += weight;
+    }
+
+    if (ggi->num_vert_weights == 0 && ggi->num_edge_weights > 0)
+    {
+      ggi->vert_weights[src] = 1;
+      ggi->vert_weights_sums[0] += 1;
+    }
+
+    while (getline(ss, val, ' '))
+    {
+      dst = atoi(val.c_str()) - 1;
+      int32_t weight = 1;
+
+      if (ggi->num_edge_weights > 0)
+      {
+        getline(ss, val, ' ');
+        weight = atoi(val.c_str());
+      }
+
+      if (src < dst) 
+      {
+        ggi->gen_edges[2*count] = src;
+        ggi->gen_edges[2*count+1] = dst;
+
+        if (ggi->num_edge_weights > 0 || ggi->num_vert_weights > 1) {
+          ggi->edge_weights[count] = weight;
+          ggi->edge_weights_sum += weight;
+        }
+
+        ++count;
+      }
+    }
+    ++cur_line;
+  }
+  assert(cur_line == ggi->n);
+  assert(count == ggi->m/2);
+  if (ggi->num_vert_weights > 0)
+    ggi->num_edge_weights = 1;  // in case was set to zero, for consistency
+  else if (ggi->num_edge_weights > 0)
+    ggi->num_vert_weights = 1;  // same thing
+
+  infile.close();
+
+  ggi->n_offset = 0;
+  ggi->n_local = ggi->n / (uint64_t)nprocs + 1;
+  if (nprocs == 1) ggi->n_local = ggi->n;
+
+  if (offset_vids)
+  {
+    uint64_t n_global = 0;
+#pragma omp parallel for reduction(max:n_global)
+    for (uint64_t i = 0; i < ggi->m; ++i)
+    {
+      uint64_t task_id = ggi->gen_edges[i] / (uint64_t)nprocs;
+      uint64_t task = ggi->gen_edges[i] % (uint64_t)nprocs;
+      uint64_t task_offset = task * (ggi->n / (uint64_t)nprocs + 1);
+      uint64_t new_vid = task_offset + task_id;
+      ggi->gen_edges[i] = new_vid;
+      if (new_vid > n_global)
+        n_global = new_vid;
+    }
+
+    ggi->n = n_global+1;
+    if (nprocs == 1) ggi->n_local = ggi->n;
+
+    int32_t* new_vert_weights = 
+        (int32_t*)malloc(ggi->n*ggi->num_vert_weights*sizeof(int32_t));
+#pragma omp parallel for
+    for (uint64_t i = 0; i < ggi->n*ggi->num_vert_weights; ++i)
+      new_vert_weights[i] = 0;
+
+#pragma omp parallel for
+    for (uint64_t i = 0; i < ggi->n; ++i) {
+      uint64_t task_id = i / (uint64_t)nprocs;
+      uint64_t task = i % (uint64_t)nprocs;
+      uint64_t task_offset = task * (ggi->n / (uint64_t)nprocs + 1);
+      uint64_t new_vid = task_offset + task_id;
+
+      for (uint64_t w = 0; w < ggi->num_vert_weights; ++w) {
+        new_vert_weights[new_vid*ggi->num_vert_weights + w] =
+            ggi->vert_weights[i*ggi->num_vert_weights + w];
+      }
+    }
+
+    free(ggi->vert_weights);
+    ggi->vert_weights = new_vert_weights;
+  }
+
+  return 0;
+}
+
+int read_graph(char* input_filename, 
+  graph_gen_data_t *ggi, bool offset_vids)
+{
+  if (procid == 0) {
+    std::ifstream infile;
+    std::string line;
+    int format = 0;
+    ggi->num_vert_weights = 0;
+
+    infile.open(input_filename);
+    getline(infile, line); 
+    sscanf(line.c_str(), "%lu %lu %d %lu", 
+      &ggi->n, &ggi->m, &format, &ggi->num_vert_weights);
+    infile.close();
+
+    ggi->m *= 2;
+    MPI_Bcast(&ggi->n, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+
+    switch(format)
+    {
+      case  0:
+      {
+        ggi->num_edge_weights = 0; 
+        ggi->num_vert_weights = 0; 
+        break;
+      }
+      case  1:
+      {
+        ggi->num_edge_weights = 1; 
+        ggi->num_vert_weights = 0; 
+        break;
+      }
+      case 10:
+      {
+        ggi->num_edge_weights = 0; 
+
+        // Handle case if header file has no fourth argument
+        if (ggi->num_vert_weights == 0)
+          ggi->num_vert_weights = 1;
+        break;
+      }
+      case 11: 
+      {
+        ggi->num_edge_weights = 1; 
+
+        // Handle case if header file has no fourth argument 
+        if (ggi->num_vert_weights == 0)
+          ggi->num_vert_weights = 1;
+        break;
+      }
+      default:
+        fprintf (stderr, "Unknown format specification: '%d'\n", format);
+        abort();
+    }
+
+    read_adj(input_filename, ggi, offset_vids);
+
+    // Do exchange of relevant info
+    MPI_Bcast(&ggi->m, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&ggi->num_vert_weights, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&ggi->num_edge_weights, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+    
+    ggi->m_local_read = (ggi->m/2) / nprocs;
+    MPI_Scatter(NULL, ggi->m_local_read, MPI_UINT64_T, 
+                ggi->gen_edges, ggi->m_local_read, MPI_UINT64_T,
+                0, MPI_COMM_WORLD);
+
+    if (ggi->num_edge_weights > 0) {}
+
+
+    // clean up      
+    uint64_t new_m_local_read = ggi->m_local_read + ggi->m/2 % nprocs;
+    uint64_t* new_gen_edges = 
+        (uint64_t*)malloc(new_m_local_read*2*sizeof(uint64_t));
+
+  } else {
+    // we do this first to ensure that n_offsets and n_locals are consistent
+    MPI_Bcast(&ggi->n, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+    ggi->n_offset = (uint64_t)procid * (ggi->n / (uint64_t)nprocs + 1);
+    ggi->n_local = ggi->n / (uint64_t)nprocs + 1;
+    if (procid == nprocs - 1 && !offset_vids)
+      ggi->n_local = ggi->n - ggi->n_offset + 1;
+
+    // procid=0 does file parsing here in read_adj()
+
+    if (offset_vids) {
+      // we (likely) have a new maximum vertex ID
+      MPI_Bcast(&ggi->n, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+      if (procid == nprocs - 1)
+        ggi->n_local = ggi->n - ggi->n_offset;
+    }
+
+    MPI_Bcast(&ggi->m, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&ggi->num_vert_weights, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&ggi->num_edge_weights, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+
+    // intentionally rounding down for scatter, procid=0 retains extra edges
+    // Note: extra allocated space to account for rounding
+    ggi->m_local_read = (ggi->m/2) / nprocs;
+    ggi->gen_edges = 
+        (uint64_t*)malloc((ggi->m_local_read + nprocs)*2*sizeof(uint64_t));
+    MPI_Scatter(NULL, ggi->m_local_read, MPI_UINT64_T, 
+                ggi->gen_edges, ggi->m_local_read, MPI_UINT64_T,
+                0, MPI_COMM_WORLD);
+
+    if (ggi->num_edge_weights > 0) {
+      ggi->edge_weights = (int32_t*)malloc(ggi->m_local_read*sizeof(int32_t));
+      MPI_Scatter(NULL, ggi->m_local_read, MPI_UINT64_T, 
+                  ggi->gen_edges, ggi->m_local_read, MPI_UINT64_T,
+                  0, MPI_COMM_WORLD);
+    }
+    if (ggi->num_vert_weights > 0) {
+      ggi->vert_weights = 
+          (int32_t*)malloc(ggi->n_local*ggi->num_vert_weights*sizeof(int32_t));
+    }
+
+
+  }
+
+  return 0;
+}
+
 
 
 int exchange_edges(graph_gen_data_t *ggi, mpi_data_t* comm)
@@ -379,3 +656,168 @@ int exchange_edges(graph_gen_data_t *ggi, mpi_data_t* comm)
   if (debug) { printf("Task %d exchange_out_edges() success\n", procid); }
   return 0;
 }
+
+
+int output_parts(const char* filename, dist_graph_t* g, int32_t* parts)
+{
+  output_parts(filename, g, parts, false);
+ 
+  return 0;
+}
+
+
+int output_parts(const char* filename, dist_graph_t* g, 
+                 int32_t* parts, bool offset_vids)
+{
+  if (verbose) printf("Task %d writing parts to %s\n", procid, filename); 
+
+  int32_t* global_parts = (int32_t*)malloc(g->n*sizeof(int32_t));
+  
+#pragma omp parallel for
+  for (uint64_t i = 0; i < g->n; ++i)
+    global_parts[i] = -1;
+
+  if (offset_vids)
+  {
+    uint64_t n_global = 0;
+#pragma omp parallel for reduction(max:n_global)
+    for (uint64_t i = 0; i < g->n_local; ++i) {
+      uint64_t task_id = g->local_unmap[i] - g->n_offset;
+      uint64_t task = (uint64_t)procid;
+      uint64_t global_id = task_id * (uint64_t)nprocs + task;
+      assert(global_id < g->n);
+      global_parts[global_id] = parts[i];
+      if (global_id > n_global)
+        n_global = global_id;
+    }
+    n_global = n_global + 1;
+    MPI_Allreduce(MPI_IN_PLACE, &n_global, 1, 
+                  MPI_UINT64_T, MPI_MAX, MPI_COMM_WORLD);
+    g->n = n_global;
+  } else {    
+#pragma omp parallel for
+    for (uint64_t i = 0; i < g->n_local; ++i) {
+      assert(g->local_unmap[i] < g->n);
+      global_parts[g->local_unmap[i]] = parts[i];
+    }
+  }
+
+  if (procid == 0)
+    MPI_Reduce(MPI_IN_PLACE, global_parts, (int32_t)g->n,
+      MPI_INT32_T, MPI_MAX, 0, MPI_COMM_WORLD);
+  else
+    MPI_Reduce(global_parts, NULL, (int32_t)g->n,
+      MPI_INT32_T, MPI_MAX, 0, MPI_COMM_WORLD);
+
+  if (procid == 0)
+  {
+    if (debug)
+      for (uint64_t i = 0; i < g->n; ++i)
+        if (global_parts[i] == -1)
+        {
+          printf("Part error: %lu not assigned\n", i);
+          global_parts[i] = 0;
+        }
+        
+    std::ofstream outfile;
+    //outfile.open(filename);
+
+    //for (uint64_t i = 0; i < g->n; ++i)
+    //  outfile << global_parts[i] << std::endl;
+
+    FILE* fp = fopen(filename, "wb");
+    fwrite(global_parts, sizeof(int32_t), g->n, fp);
+    fclose(fp);
+
+    outfile.close();
+  }
+
+  free(global_parts);
+
+  if (verbose) printf("Task %d done writing parts\n", procid); 
+
+  return 0;
+}
+
+
+int read_parts(const char* filename, dist_graph_t* g, 
+               pulp_data_t* pulp, bool offset_vids)
+{
+  if (verbose) printf("Task %d reading in parts from %s\n", procid, filename); 
+
+  int32_t* global_parts = (int32_t*)malloc(g->n*sizeof(int32_t));
+
+#pragma omp parallel for
+  for (uint64_t i = 0; i < g->n; ++i)
+    global_parts[i] = -1;
+#pragma omp parallel for  
+  for (uint64_t i = 0; i < g->n_total; ++i)        
+    pulp->local_parts[i] = -1;
+
+
+  if (procid == 0)
+  {
+    std::ifstream outfile;
+    outfile.open(filename);
+
+    for (uint64_t i = 0; i < g->n; ++i)
+      outfile >> global_parts[i];
+
+    outfile.close();
+
+    if (debug)
+      for (uint64_t i = 0; i < g->n; ++i)
+        if (global_parts[i] == -1)
+        {
+          printf("Part error: %lu not assigned\n", i);
+          global_parts[i] = 0;
+        }
+  }
+
+  MPI_Bcast(global_parts, (int32_t)g->n, MPI_INT32_T, 0, MPI_COMM_WORLD);
+
+  if (offset_vids)
+  {   
+#pragma omp parallel for
+    for (uint64_t i = 0; i < g->n_local; ++i)
+    {
+      uint64_t task = (uint64_t)procid;
+      uint64_t task_id = g->local_unmap[i] - g->n_offset;
+      uint64_t global_id = task_id * (uint64_t)nprocs + task;
+      if (global_id < g->n)
+        pulp->local_parts[i] = global_parts[global_id];
+    }
+#pragma omp parallel for
+    for (uint64_t i = 0; i < g->n_ghost; ++i)
+    {
+      uint64_t task = (uint64_t)g->ghost_tasks[i];
+      uint64_t task_id = g->ghost_unmap[i] - task*(g->n/(uint64_t)nprocs + 1);
+      uint64_t global_id = task_id * (uint64_t)nprocs + task;
+      if (global_id < g->n)
+        pulp->local_parts[i + g->n_local] = global_parts[global_id];
+    }
+    if (debug)
+      for (uint64_t i = 0; i < g->n_total; ++i)        
+        if (pulp->local_parts[i] == -1)
+        {
+          printf("Part error: %lu not assigned\n", i);
+          pulp->local_parts[i] = 0;
+        }
+  }
+  else
+  {
+#pragma omp parallel for
+    for (uint64_t i = 0; i < g->n_local; ++i)
+      pulp->local_parts[i] = global_parts[g->local_unmap[i]];
+#pragma omp parallel for
+    for (uint64_t i = 0; i < g->n_ghost; ++i)
+      pulp->local_parts[i + g->n_local] = global_parts[g->ghost_unmap[i]];
+  }
+
+  free(global_parts);
+
+  if (verbose) printf("Task %d done reading in parts\n", procid); 
+
+  return 0;
+}
+

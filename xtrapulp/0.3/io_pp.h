@@ -57,6 +57,20 @@ int load_graph_edges_32(char *input_filename, graph_gen_data_t *ggi,
 int load_graph_edges_64(char *input_filename, graph_gen_data_t *ggi, 
                         bool offset_vids);
 
+int read_adj(char* input_filename, 
+  graph_gen_data_t *ggi, bool offset_vids);
+
+int read_graph(char* input_filename, 
+  graph_gen_data_t *ggi, bool offset_vids);
+
 int exchange_edges(graph_gen_data_t *ggi, mpi_data_t* comm);
+
+int output_parts(const char* filename, dist_graph_t* g, int32_t* parts);
+
+int output_parts(const char* filename, dist_graph_t* g, 
+                 int32_t* parts, bool offset_vids);
+
+int read_parts(const char* filename, dist_graph_t* g, 
+               pulp_data_t* pulp, bool offset_vids);
 
 #endif

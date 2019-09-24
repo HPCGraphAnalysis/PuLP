@@ -70,13 +70,13 @@ void init_thread_pulp(thread_pulp_t* tp, pulp_data_t* pulp)
 
 
 void init_thread_pulp(thread_pulp_t* tp, pulp_data_t* pulp, 
-  uint64_t num_weights)
+  uint64_t num_vert_weights)
 {  
   //if (debug) printf("Task %d init_thread_pulp() start\n", procid); 
 
   tp->part_counts = (double*)malloc(pulp->num_parts*sizeof(double));
-  tp->part_weights = (double**)malloc(num_weights*sizeof(double*));
-  for (uint64_t w = 0; w < num_weights; ++w)
+  tp->part_weights = (double**)malloc(num_vert_weights*sizeof(double*));
+  for (uint64_t w = 0; w < num_vert_weights; ++w)
     tp->part_weights[w] = (double*)malloc(pulp->num_parts*sizeof(double));
   tp->part_vert_weights = NULL;
   tp->part_edge_weights = NULL;
@@ -110,7 +110,7 @@ void init_pulp_data(
 
   pulp->num_parts = num_parts;
   pulp->avg_vert_size = (double)g->n / (double)pulp->num_parts;
-  pulp->avg_edge_size = (double)g->m*2 / (double)pulp->num_parts;
+  pulp->avg_edge_size = (double)g->m / (double)pulp->num_parts;
   pulp->avg_cut_size = 0.0;
   pulp->max_v = 0.0;
   pulp->max_e = 1.0;
@@ -233,16 +233,16 @@ void init_pulp_data_weighted(
   if (debug) printf("Task %d init_pulp_data() start\n", procid); 
 
   pulp->num_parts = num_parts;
-  pulp->avg_sizes = (double*)malloc(g->num_weights*sizeof(double));
-  for (uint64_t w = 0; w < g->num_weights; ++w) {
+  pulp->avg_sizes = (double*)malloc(g->num_vert_weights*sizeof(double));
+  for (uint64_t w = 0; w < g->num_vert_weights; ++w) {
     pulp->avg_sizes[w] = 
-        (double)g->vertex_weights_sums[w] / (double)pulp->num_parts;
+        (double)g->vert_weights_sums[w] / (double)pulp->num_parts;
   }
   pulp->avg_cut_size = 0.0;
   pulp->max_c = 1.0;
-  pulp->maxes = (double*)malloc(g->num_weights*sizeof(double));
+  pulp->maxes = (double*)malloc(g->num_vert_weights*sizeof(double));
   pulp->weight_exponent_c = 1.0;
-  pulp->weight_exponents = (double*)malloc(g->num_weights*sizeof(double));
+  pulp->weight_exponents = (double*)malloc(g->num_vert_weights*sizeof(double));
 
   // used in pulp_mm only //////////////
   pulp->avg_vert_size = 0;
@@ -257,12 +257,12 @@ void init_pulp_data_weighted(
   //////////////////////////////////////
 
   pulp->local_parts = (int32_t*)malloc(g->n_total*sizeof(int32_t));
-  pulp->part_sizes = (int64_t**)malloc(g->num_weights*sizeof(int64_t*));
-  for (uint64_t w = 0; w < g->num_weights; ++w)
+  pulp->part_sizes = (int64_t**)malloc(g->num_vert_weights*sizeof(int64_t*));
+  for (uint64_t w = 0; w < g->num_vert_weights; ++w)
     pulp->part_sizes[w] = (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
   
-  pulp->part_size_changes = (int64_t**)malloc(g->num_weights*sizeof(int64_t*));
-  for (uint64_t w = 0; w < g->num_weights; ++w)
+  pulp->part_size_changes = (int64_t**)malloc(g->num_vert_weights*sizeof(int64_t*));
+  for (uint64_t w = 0; w < g->num_vert_weights; ++w)
     pulp->part_size_changes[w] = 
         (int64_t*)malloc(pulp->num_parts*sizeof(int64_t));
 
@@ -279,10 +279,10 @@ void init_pulp_data_weighted(
   pulp->max_cut = 0;
   pulp->cut_size_change = 0;
 
-  for (uint64_t w = 0; w < g->num_weights; ++w)
+  for (uint64_t w = 0; w < g->num_vert_weights; ++w)
     for (int32_t p = 0; p < pulp->num_parts; ++p)
       pulp->part_sizes[w][p] = 0;
-  for (uint64_t w = 0; w < g->num_weights; ++w)
+  for (uint64_t w = 0; w < g->num_vert_weights; ++w)
     for (int32_t p = 0; p < pulp->num_parts; ++p)
       pulp->part_size_changes[w][p] = 0;
 
@@ -299,7 +299,7 @@ void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp)
 {
   for (int32_t p = 0; p < pulp->num_parts; ++p)
   {
-    for (uint64_t w = 0; w < g->num_weights; ++w) {
+    for (uint64_t w = 0; w < g->num_vert_weights; ++w) {
       pulp->part_sizes[w][p] = 0;
       pulp->part_size_changes[w][p] = 0;
     }
@@ -313,9 +313,9 @@ void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp)
     uint64_t vert_index = i;
     int32_t part = pulp->local_parts[vert_index];
 
-    for (uint64_t w = 0; w < g->num_weights; ++w)
+    for (uint64_t w = 0; w < g->num_vert_weights; ++w)
       pulp->part_sizes[w][part] += 
-          g->vertex_weights[vert_index*g->num_weights + w];
+          g->vert_weights[vert_index*g->num_vert_weights + w];
 
     uint64_t out_degree = out_degree(g, vert_index);
     uint64_t* outs = out_vertices(g, vert_index);
@@ -332,7 +332,7 @@ void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp)
     }
   }
 
-  for (uint64_t w = 0; w < g->num_weights; ++w)
+  for (uint64_t w = 0; w < g->num_vert_weights; ++w)
     MPI_Allreduce(MPI_IN_PLACE, pulp->part_sizes[w], pulp->num_parts, 
         MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, pulp->part_cut_sizes, pulp->num_parts,
@@ -352,7 +352,7 @@ void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp)
       pulp->max_cut = pulp->part_cut_sizes[p];
   }
 
-  for (uint64_t w = 0; w < g->num_weights; ++w) {
+  for (uint64_t w = 0; w < g->num_vert_weights; ++w) {
     pulp->maxes[w] = 0.0;
     for (int p = 0; p < pulp->num_parts; ++p) {
       if ((double)pulp->part_sizes[w][p] / pulp->avg_sizes[w] > pulp->maxes[w])

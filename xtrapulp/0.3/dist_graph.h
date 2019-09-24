@@ -67,6 +67,16 @@ struct graph_gen_data_t {
   uint64_t m_local_edges;
 
   uint64_t *gen_edges;
+
+  // For pulp_w
+  int32_t* vert_weights;
+  int32_t* edge_weights;
+  int64_t* vert_weights_sums;
+  int64_t  edge_weights_sum;
+  int32_t* max_vert_weights;
+  int32_t  max_edge_weight;
+  uint64_t num_vert_weights;
+  uint64_t num_edge_weights;
 };
 
 int create_graph(graph_gen_data_t *ggi, dist_graph_t *g);

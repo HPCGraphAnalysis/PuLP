@@ -80,7 +80,7 @@ extern "C" int xtrapulp_run(
   if (ppc->do_repart)
     memcpy(pulp.local_parts, parts, g->n_local*sizeof(int32_t));   
 
-  if (g->num_weights == 0)
+  if (g->num_vert_weights == 0)
     xtrapulp(g, ppc, &comm, &pulp, &q);
   else
     xtrapulp_weighted(g, ppc, &comm, &pulp, &q);
@@ -236,7 +236,7 @@ extern "C" int xtrapulp_weighted(
   debug = false;
   bool do_repart = ppc->do_repart;
   int label_prop_iter = 3;
-  int outer_iter = 3*g->num_weights;
+  int outer_iter = 3*g->num_vert_weights;
   int balance_iter = 5;
   int refine_iter = 10;
   int num_parts = (int)pulp->num_parts;
@@ -318,7 +318,7 @@ extern "C" int create_xtrapulp_dist_graph(
   unsigned long n_local, unsigned long m_local,
   unsigned long* local_adjs, unsigned long* local_offsets, 
   unsigned long* global_ids, unsigned long* vert_dist,
-  int num_weights, int* vertex_weights, int* edge_weights)
+  int num_vert_weights, int* vertex_weights, int* edge_weights)
 {
   MPI_Comm_rank(MPI_COMM_WORLD, &procid);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
@@ -339,7 +339,7 @@ extern "C" int create_xtrapulp_dist_graph(
                  (int32_t*)vertex_weights, (int32_t*)edge_weights);
   }
 
-  if (num_weights == 0)
+  if (num_vert_weights == 0)
     get_ghost_degrees(g);
 
   return 0;

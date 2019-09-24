@@ -138,8 +138,8 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
 #pragma omp single
 {
-  //if (procid == 0) printf("EVAL ec VEC EB ------------------------------\n");
-  //part_eval(g, pulp);
+  if (procid == 0) printf("EVAL pulp_vec bal ------------------------------\n");
+  part_eval(g, pulp);
   update_pulp_data(g, pulp);
   num_swapped_1 = 0;
 }
@@ -407,8 +407,8 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
 #pragma omp single
 {  
-  //if (procid == 0) printf("EVAL ec VEC ER ------------------------------\n");
-  //part_eval(g, pulp);
+  if (procid == 0) printf("EVAL pulp_vec ref ------------------------------\n");
+  part_eval(g, pulp);
   update_pulp_data(g, pulp);
   num_swapped_2 = 0;
 }

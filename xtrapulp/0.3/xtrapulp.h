@@ -90,16 +90,20 @@ struct dist_graph_t {
   uint64_t* out_degree_list;
   uint64_t* ghost_degrees;
 
-  int32_t* vertex_weights;
-  int32_t* edge_weights;
-  int64_t* vertex_weights_sums;
-  int32_t* max_weights;
-  uint64_t num_weights;
-
   uint64_t* local_unmap;
   uint64_t* ghost_unmap;
   uint64_t* ghost_tasks;
   fast_map* map;
+
+  // for pulp_w
+  int32_t* vert_weights;
+  int32_t* edge_weights;
+  int64_t* vert_weights_sums;
+  int64_t  edge_weights_sum;
+  int32_t* max_vert_weights;
+  int32_t  max_edge_weight;
+  uint64_t num_vert_weights;
+  uint64_t num_edge_weights;
 } ;
 #define out_degree(g, n) (g->out_degree_list[n+1] - g->out_degree_list[n])
 #define out_vertices(g, n) &g->out_edges[g->out_degree_list[n]]
@@ -124,7 +128,7 @@ extern "C" int create_xtrapulp_dist_graph(
   unsigned long n_local, unsigned long m_local,
   unsigned long* local_adjs, unsigned long* local_offsets,  
   unsigned long* global_ids, unsigned long* vert_dist,
-  int num_weights, int* vertex_weights, int* edge_weights);
+  int num_weights, int* vert_weights, int* edge_weights);
 
 double timer();
 

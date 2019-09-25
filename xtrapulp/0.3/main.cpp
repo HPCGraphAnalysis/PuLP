@@ -47,8 +47,8 @@
 #include <omp.h>
 #include <time.h>
 #include <getopt.h>
-#include <sstream>
 #include <string.h>
+#include <sstream>
 
 #include "xtrapulp.h"
 #include "dist_graph.h"
@@ -57,6 +57,8 @@
 #include "io_pp.h"
 #include "pulp_util.h"
 #include "util.h"
+
+#define MAX_CONSTRAINTS 1024
 
 
 extern int procid, nprocs;
@@ -74,12 +76,17 @@ void print_usage_full(char** argv)
 {
   printf("To run: %s [graphfile] [num parts] [options]\n\n", argv[0]);
   printf("Options:\n");
+  printf("\t-a\n");
+  printf("\t\tGraph file is adjacency (METIS) format\n");
+  printf("\t\tDefault is unsigned 32-bit binary edge list\n");
+  printf("\t-t \"#.# #.# ...\"\n");
+  printf("\t\tFor PuLP-W: Space delimited list of constraints\n");
   printf("\t-v [#.#]:\n");
-  printf("\t\tVertex balance constraint [default: 1.10 (10%%)]\n");
+  printf("\t\tFor PuLP-MM: Vertex balance constraint [default: 1.10 (10%%)]\n");
   printf("\t-e [#.#]:\n");
-  printf("\t\tEdge balance constraint [default: off]\n");
+  printf("\t\tFor PuLP-MM: Edge balance constraint [default: off]\n");
   printf("\t-c:\n");
-  printf("\t\tAttempt to minimize per-part cut\n");
+  printf("\t\tMinimize per-part cut in addition to edge cut\n");
   printf("\t-d:\n");
   printf("\t\tUse round-robin instead of vertex-based distribution\n");
   printf("\t\t\t (Might help with load imbalance)\n");
@@ -94,6 +101,21 @@ void print_usage_full(char** argv)
   printf("\t-s [seed]:\n");
   printf("\t\tSet seed integer [default: random int]\n");
   exit(0);
+}
+
+int parse_constraints(char* optarg, 
+    double* constraints, int32_t& num_constraints)
+{
+  num_constraints = 0;
+  double d = 0.0;
+  std::stringstream ss(optarg);
+  while (ss >> d) {
+    constraints[num_constraints++] = d;
+    if (num_constraints >= MAX_CONSTRAINTS)
+      throw_err("Maximum constraints is 1024. Check input formatting.");
+  }
+
+  return 0;
 }
 
 
@@ -130,7 +152,8 @@ int main(int argc, char **argv)
   int32_t num_parts = atoi(argv[2]);
   double vert_balance = 1.1;
   double edge_balance = 1.1;
-  double constraints[] = {1.1, 1.1, 1.1};
+  double constraints[MAX_CONSTRAINTS];
+  int32_t num_constraints = 0;
   bool adj_format = false;
 
   uint64_t num_runs = 1;
@@ -152,13 +175,16 @@ int main(int argc, char **argv)
   bool do_maxcut_balance = false;
 
   char c;
-  while ((c = getopt (argc, argv, "v:e:o:i:m:s:p:dlqtca")) != -1) {
+  while ((c = getopt (argc, argv, "v:e:o:i:mn:s:p:dlqtc:a")) != -1) {
     switch (c) {
+      case 'h':
+        print_usage_full(argv);
+        break;
       case 'a':
         adj_format = true;
         break;
-      case 'h':
-        print_usage_full(argv);
+      case 'c':
+        parse_constraints(optarg, constraints, num_constraints);
         break;
       case 'v':
         vert_balance = strtod(optarg, NULL);
@@ -167,7 +193,7 @@ int main(int argc, char **argv)
         edge_balance = strtod(optarg, NULL);
         do_edge_balance = true;
         break;
-      case 'c':
+      case 'm':
         do_maxcut_balance = true;
         break;
       case 'o':
@@ -179,7 +205,7 @@ int main(int argc, char **argv)
         do_bfs_init = false;
         do_lp_init = false;
         break;
-      case 'm':
+      case 'n':
         num_runs = strtoul(optarg, NULL, 10);
         break;
         break;
@@ -220,31 +246,27 @@ int main(int argc, char **argv)
     }
   }
 
-  graph_gen_data_t ggi;
-  dist_graph_t g;
-
-  mpi_data_t comm;
-  init_comm_data(&comm);
+  graph_gen_data_t* ggi = (graph_gen_data_t*)malloc(sizeof(graph_gen_data_t));
   if (gen_rand)
   {
     std::stringstream ss;
     ss << "rand-" << gen_n << "-" << gen_m_per_n;
     strcat(graphname, ss.str().c_str());
-    generate_rand_out_edges(&ggi, gen_n, gen_m_per_n, offset_vids);
+    generate_rand_out_edges(ggi, gen_n, gen_m_per_n, offset_vids);
   }
   else if (gen_rmat)
   {
     std::stringstream ss;
     ss << "rmat-" << gen_n << "-" << gen_m_per_n;
     strcat(graphname, ss.str().c_str());
-    generate_rmat_out_edges(&ggi, gen_n, gen_m_per_n, offset_vids);
+    generate_rmat_out_edges(ggi, gen_n, gen_m_per_n, offset_vids);
   }
   else if (gen_hd)
   {
     std::stringstream ss;
     ss << "hd-" << gen_n << "-" << gen_m_per_n;
     strcat(graphname, ss.str().c_str());
-    generate_hd_out_edges(&ggi, gen_n, gen_m_per_n, offset_vids);
+    generate_hd_out_edges(ggi, gen_n, gen_m_per_n, offset_vids);
   }
   else
   {
@@ -253,38 +275,53 @@ int main(int argc, char **argv)
     strcat(graphname, input_filename);
 
     if (adj_format)
-      read_graph(input_filename, &ggi, offset_vids);
+      read_graph(input_filename, ggi, offset_vids);
     else
-      load_graph_edges_32(input_filename, &ggi, offset_vids);
+      load_graph_edges_32(input_filename, ggi, offset_vids);
 
     elt = omp_get_wtime() - elt;
     if (procid == 0) printf("Reading Finished: %9.6lf (s)\n", elt);
   }
 
+
+  dist_graph_t* g = (dist_graph_t*)malloc(sizeof(dist_graph_t));
+  mpi_data_t* comm = (mpi_data_t*)malloc(sizeof(mpi_data_t));
+  init_comm_data(comm);
+  
   if (nprocs > 1)
   {
-    exchange_edges(&ggi, &comm);
-    create_graph(&ggi, &g);
-    relabel_edges(&g);
+    if (ggi->num_vert_weights > 0) {
+      exchange_edges_weighted(ggi, comm);
+      create_graph_weighted(ggi, g);
+    } else {
+      exchange_edges(ggi, comm);
+      create_graph(ggi, g);
+    }
+    relabel_edges(g);
   }
   else
   {
-    create_graph_serial(&ggi, &g);
+    if (ggi->num_vert_weights > 0) {
+      create_graph_serial_weighted(ggi, g);
+    } else {
+      create_graph_serial(ggi, g);
+    }
   }
 
-  queue_data_t q;
-  init_queue_data(&g, &q);
-  get_ghost_degrees(&g, &comm, &q);
+  queue_data_t* q = (queue_data_t*)malloc(sizeof(queue_data_t));
+  init_queue_data(g, q);
+  get_ghost_degrees(g, comm, q);
 
-  pulp_data_t pulp;
-  init_pulp_data(&g, &pulp, num_parts);
-  pulp_part_control_t ppc;
-  ppc = {
-    vert_balance, edge_balance, 
-    constraints, (int)g.num_vert_weights, 
-    do_lp_init, do_bfs_init, do_repart, 
-    do_edge_balance, do_maxcut_balance,
-    false, pulp_seed};
+  pulp_data_t* pulp = (pulp_data_t*)malloc(sizeof(pulp_data_t));
+  init_pulp_data(g, pulp, num_parts);
+  pulp_part_control_t* ppc = 
+      (pulp_part_control_t*)malloc(sizeof(pulp_part_control_t));
+  *ppc = {
+      vert_balance, edge_balance, 
+      constraints, (int)g->num_vert_weights, 
+      do_lp_init, do_bfs_init, do_repart, 
+      do_edge_balance, do_maxcut_balance,
+      false, pulp_seed};
 
   double total_elt = 0.0;
   for (uint32_t i = 0; i < num_runs; ++i)
@@ -294,14 +331,14 @@ int main(int argc, char **argv)
     {
       if (procid == 0) printf("Reading in parts file %s\n", parts_in);
       elt = omp_get_wtime();
-      read_parts(parts_in, &g, &pulp, offset_vids);
+      read_parts(parts_in, g, pulp, offset_vids);
       elt = omp_get_wtime() - elt;
       if (procid == 0) printf("Reading Finished: %9.6lf (s)\n", elt);
     }
 
     if (procid == 0) printf("Starting Partitioning\n");
     elt = omp_get_wtime();
-    xtrapulp(&g, &ppc, &comm, &pulp, &q);
+    xtrapulp(g, ppc, comm, pulp, q);
     total_elt += omp_get_wtime() - elt;
     elt = omp_get_wtime() - elt;
     if (procid == 0) printf("Partitioning Finished\n");
@@ -309,10 +346,10 @@ int main(int argc, char **argv)
 
     if (output_quality)
     {
-      if (g.num_vert_weights == 0)
-        part_eval(&g, &pulp);
+      if (g->num_vert_weights == 0)
+        part_eval(g, pulp);
       else
-        part_eval_weighted(&g, &pulp);
+        part_eval_weighted(g, pulp);
       // For testing
       //if (procid == 0)
       //  printf("&&& XtraPuLP, %s, %d, %2.3lf, %2.3lf, %li, %li\n", 
@@ -336,7 +373,7 @@ int main(int argc, char **argv)
     }
     if (procid == 0) printf("Writing out parts file %s\n", temp_out);
     elt = omp_get_wtime();
-    output_parts(temp_out, &g, pulp.local_parts, offset_vids);
+    output_parts(temp_out, g, pulp->local_parts, offset_vids);
     if (procid == 0) printf("Done Writing: %9.6lf (s)\n", omp_get_wtime() - elt);
   }
   if (output_time && procid == 0 && num_runs > 1) 
@@ -344,9 +381,15 @@ int main(int argc, char **argv)
     printf("XtraPuLP Avg. Time: %9.6lf (s)\n", (total_elt / (double)num_runs) );
   }
 
-  clear_graph(&g);
-  clear_comm_data(&comm);
-  clear_queue_data(&q);
+  clear_graph(g);
+  free(g);
+  clear_comm_data(comm);
+  free(comm);
+  clear_queue_data(q);
+  free(q);
+  clear_pulp_data(pulp);
+  free(pulp);
+  free(ppc);
 
   MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();

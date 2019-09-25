@@ -339,8 +339,9 @@ int read_adj(char* input_filename,
     }
     ++cur_line;
   }
-  assert(cur_line == ggi->n);
-  assert(count == ggi->m/2);
+  assert(cur_line == ggi->n+1);
+  ggi->m = count*2; // num edges after self-loop removal
+
   if (ggi->num_vert_weights > 0)
     ggi->num_edge_weights = 1;  // in case was set to zero, for consistency
   else if (ggi->num_edge_weights > 0)
@@ -411,7 +412,6 @@ int read_graph(char* input_filename,
       &ggi->n, &ggi->m, &format, &ggi->num_vert_weights);
     infile.close();
 
-    ggi->m *= 2;
     MPI_Bcast(&ggi->n, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
 
     switch(format)
@@ -457,20 +457,38 @@ int read_graph(char* input_filename,
     MPI_Bcast(&ggi->m, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
     MPI_Bcast(&ggi->num_vert_weights, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
     MPI_Bcast(&ggi->num_edge_weights, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
-    
+    ggi->m_local_read = (ggi->m/2);
+/*    
     ggi->m_local_read = (ggi->m/2) / nprocs;
-    MPI_Scatter(NULL, ggi->m_local_read, MPI_UINT64_T, 
-                ggi->gen_edges, ggi->m_local_read, MPI_UINT64_T,
+    uint64_t* new_gen_edges = 
+        (uint64_t*)malloc(2*(ggi->m_local_read + nprocs)*sizeof(uint64_t));
+    MPI_Scatter(new_gen_edges, ggi->m_local_read*2, MPI_UINT64_T, 
+                ggi->gen_edges, ggi->m_local_read*2, MPI_UINT64_T,
                 0, MPI_COMM_WORLD);
 
-    if (ggi->num_edge_weights > 0) {}
+    // take remainder for procid = 0
+    uint64_t new_m_local_read = (ggi->m - ggi->m_local_read*2*(nprocs-1)) / 2;
+    memcpy( &new_gen_edges[ggi->m_local_read*2],
+            &ggi->gen_edges[ggi->m_local_read*2*(nprocs-1)],
+            new_m_local_read*2*sizeof(uint64_t) );
+    free(ggi->gen_edges);
+    ggi->gen_edges = new_gen_edges;
 
+    if (ggi->num_edge_weights > 0) {
+      uint64_t* new_edge_weights = 
+          (uint64_t*)malloc(2*new_m_local_read*sizeof(uint64_t));
+      MPI_Scatter(ggi->edge_weights, ggi->m_local_read, MPI_UINT64_T, 
+                  ggi->edge_weights, ggi->m_local_read, MPI_UINT64_T,
+                  0, MPI_COMM_WORLD);
+      memcpy( &new_edge_weights[ggi->m_local_read],
+              &ggi->edge_weights[ggi->m_local_read*(nprocs-1)],
+              new_m_local_read*sizeof(uint64_t) );
 
-    // clean up      
-    uint64_t new_m_local_read = ggi->m_local_read + ggi->m/2 % nprocs;
-    uint64_t* new_gen_edges = 
-        (uint64_t*)malloc(new_m_local_read*2*sizeof(uint64_t));
-
+      MPI_Scatter(ggi->vert_weights, ggi->n_local, MPI_UINT64_T, 
+                  ggi->vert_weights, ggi->n_local, MPI_UINT64_T,
+                  0, MPI_COMM_WORLD);
+    }
+*/
   } else {
     // we do this first to ensure that n_offsets and n_locals are consistent
     MPI_Bcast(&ggi->n, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
@@ -491,27 +509,31 @@ int read_graph(char* input_filename,
     MPI_Bcast(&ggi->m, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
     MPI_Bcast(&ggi->num_vert_weights, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
     MPI_Bcast(&ggi->num_edge_weights, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
-
+    ggi->m_local_read = 0;
+    ggi->vert_weights = NULL;
+    ggi->edge_weights = NULL;
+/*
     // intentionally rounding down for scatter, procid=0 retains extra edges
-    // Note: extra allocated space to account for rounding
     ggi->m_local_read = (ggi->m/2) / nprocs;
     ggi->gen_edges = 
-        (uint64_t*)malloc((ggi->m_local_read + nprocs)*2*sizeof(uint64_t));
-    MPI_Scatter(NULL, ggi->m_local_read, MPI_UINT64_T, 
-                ggi->gen_edges, ggi->m_local_read, MPI_UINT64_T,
+        (uint64_t*)malloc((ggi->m_local_read)*2*sizeof(uint64_t));
+    MPI_Scatter(NULL, 0, NULL, 
+                ggi->gen_edges, ggi->m_local_read*2, MPI_UINT64_T,
                 0, MPI_COMM_WORLD);
 
     if (ggi->num_edge_weights > 0) {
       ggi->edge_weights = (int32_t*)malloc(ggi->m_local_read*sizeof(int32_t));
-      MPI_Scatter(NULL, ggi->m_local_read, MPI_UINT64_T, 
-                  ggi->gen_edges, ggi->m_local_read, MPI_UINT64_T,
+      MPI_Scatter(NULL, 0, NULL,
+                  ggi->edge_weights, ggi->m_local_read, MPI_UINT64_T,
                   0, MPI_COMM_WORLD);
-    }
-    if (ggi->num_vert_weights > 0) {
+
       ggi->vert_weights = 
           (int32_t*)malloc(ggi->n_local*ggi->num_vert_weights*sizeof(int32_t));
+      MPI_Scatter(NULL, 0, NULL, 
+                  ggi->vert_weights, ggi->n_local*ggi->num_vert_weights, 
+                  MPI_UINT64_T, 0, MPI_COMM_WORLD);
     }
-
+*/
 
   }
 
@@ -656,6 +678,149 @@ int exchange_edges(graph_gen_data_t *ggi, mpi_data_t* comm)
   if (debug) { printf("Task %d exchange_out_edges() success\n", procid); }
   return 0;
 }
+
+
+int exchange_edges_weighted(graph_gen_data_t *ggi, mpi_data_t* comm)
+{
+  if (debug) { printf("Task %d exchange_edges_weighted() start\n", procid); }
+  double elt = 0.0;
+  if (verbose) {
+    MPI_Barrier(MPI_COMM_WORLD);
+    elt = omp_get_wtime();
+  }
+
+  uint64_t* temp_sendcounts = (uint64_t*)malloc(nprocs*sizeof(uint64_t));
+  uint64_t* temp_recvcounts = (uint64_t*)malloc(nprocs*sizeof(uint64_t));
+  for (int i = 0; i < nprocs; ++i)
+  {
+    temp_sendcounts[i] = 0;
+    temp_recvcounts[i] = 0;
+  }
+
+  uint64_t n_per_rank = ggi->n / nprocs + 1;
+  for (uint64_t i = 0; i < ggi->m_local_read*2; i+=2)
+  {
+    uint64_t vert1 = ggi->gen_edges[i];
+    int32_t vert_task1 = (int32_t)(vert1 / n_per_rank);
+    temp_sendcounts[vert_task1] += 3;
+
+    uint64_t vert2 = ggi->gen_edges[i+1];
+    int32_t vert_task2 = (int32_t)(vert2 / n_per_rank);
+    temp_sendcounts[vert_task2] += 3;
+  }
+
+  MPI_Alltoall(temp_sendcounts, 1, MPI_UINT64_T, 
+               temp_recvcounts, 1, MPI_UINT64_T, MPI_COMM_WORLD);
+  
+  uint64_t total_recv = 0;
+  uint64_t total_send = 0;
+  for (int32_t i = 0; i < nprocs; ++i)
+  {
+    total_recv += temp_recvcounts[i];
+    total_send += temp_sendcounts[i];
+  }
+  free(temp_sendcounts);
+  free(temp_recvcounts);
+
+  uint64_t* recvbuf = (uint64_t*)malloc(total_recv*sizeof(uint64_t));
+  if (recvbuf == NULL)
+  { 
+    fprintf(stderr, "Task %d Error: exchange_edges_weighted(), unable to allocate buffer\n", procid);
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }  
+
+  uint64_t max_transfer = total_send > total_recv ? total_send : total_recv;
+  uint64_t num_comms = max_transfer / (uint64_t)(MAX_SEND_SIZE/2) + 1;
+  MPI_Allreduce(MPI_IN_PLACE, &num_comms, 1, 
+                MPI_UINT64_T, MPI_MAX, MPI_COMM_WORLD);
+
+  if (debug) 
+    printf("Task %d exchange_edges_weighted() num_comms %lu total_send %lu total_recv %lu\n", procid, num_comms, total_send, total_recv);
+
+  uint64_t sum_recv = 0;
+  for (uint64_t c = 0; c < num_comms; ++c)
+  {
+    uint64_t send_begin = (ggi->m_local_read * c) / num_comms;
+    uint64_t send_end = (ggi->m_local_read * (c + 1)) / num_comms;
+    if (c == (num_comms-1))
+      send_end = ggi->m_local_read;
+
+    for (int32_t i = 0; i < nprocs; ++i)
+    {
+      comm->sendcounts[i] = 0;
+      comm->recvcounts[i] = 0;
+    }
+
+    for (uint64_t i = send_begin; i < send_end; ++i)
+    {
+      uint64_t vert1 = ggi->gen_edges[i*2];
+      int32_t vert_task1 = (int32_t)(vert1 / n_per_rank);
+      comm->sendcounts[vert_task1] += 3;
+
+      uint64_t vert2 = ggi->gen_edges[i*2+1];
+      int32_t vert_task2 = (int32_t)(vert2 / n_per_rank);
+      comm->sendcounts[vert_task2] += 3;
+    }
+
+    MPI_Alltoall(comm->sendcounts, 1, MPI_INT32_T, 
+                 comm->recvcounts, 1, MPI_INT32_T, MPI_COMM_WORLD);
+
+    comm->sdispls[0] = 0;
+    comm->sdispls_cpy[0] = 0;
+    comm->rdispls[0] = 0;
+    for (int32_t i = 1; i < nprocs; ++i)
+    {
+      comm->sdispls[i] = comm->sdispls[i-1] + comm->sendcounts[i-1];
+      comm->rdispls[i] = comm->rdispls[i-1] + comm->recvcounts[i-1];
+      comm->sdispls_cpy[i] = comm->sdispls[i];
+    }
+
+    int32_t cur_send = comm->sdispls[nprocs-1] + comm->sendcounts[nprocs-1];
+    int32_t cur_recv = comm->rdispls[nprocs-1] + comm->recvcounts[nprocs-1];
+    uint64_t* sendbuf = (uint64_t*) malloc((uint64_t)cur_send*sizeof(uint64_t));
+    if (sendbuf == NULL)
+    { 
+      fprintf(stderr, "Task %d Error: exchange_edges_weighted(), unable to allocate comm buffers", procid);
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    for (uint64_t i = send_begin; i < send_end; ++i)
+    {
+      uint64_t vert1 = ggi->gen_edges[2*i];
+      uint64_t vert2 = ggi->gen_edges[2*i+1];
+      uint64_t weight = (uint64_t)ggi->edge_weights[i];
+      int32_t vert_task1 = (int32_t)(vert1 / n_per_rank);
+      int32_t vert_task2 = (int32_t)(vert2 / n_per_rank);
+
+      sendbuf[comm->sdispls_cpy[vert_task1]++] = vert1; 
+      sendbuf[comm->sdispls_cpy[vert_task1]++] = vert2;
+      sendbuf[comm->sdispls_cpy[vert_task1]++] = weight;
+      sendbuf[comm->sdispls_cpy[vert_task2]++] = vert2; 
+      sendbuf[comm->sdispls_cpy[vert_task2]++] = vert1;
+      sendbuf[comm->sdispls_cpy[vert_task2]++] = weight;
+    }
+
+    MPI_Alltoallv(sendbuf, comm->sendcounts, comm->sdispls, MPI_UINT64_T, 
+                  recvbuf+sum_recv, comm->recvcounts, comm->rdispls,
+                  MPI_UINT64_T, MPI_COMM_WORLD);
+    sum_recv += cur_recv;
+    free(sendbuf);
+  }
+
+  free(ggi->gen_edges);
+  free(ggi->edge_weights);
+  ggi->gen_edges = recvbuf;
+  ggi->m_local_edges = total_recv / 2;
+
+  if (verbose) {
+    elt = omp_get_wtime() - elt;
+    printf("Task %d exchange_edges_weighted() sent %lu, recv %lu, m_local_edges %lu, %9.6f (s)\n", procid, total_send, total_recv, ggi->m_local_edges, elt);
+  }
+
+  if (debug) { printf("Task %d exchange_edges_weighted() success\n", procid); }
+  return 0;
+}
+
 
 
 int output_parts(const char* filename, dist_graph_t* g, int32_t* parts)

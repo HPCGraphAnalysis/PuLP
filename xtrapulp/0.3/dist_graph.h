@@ -80,8 +80,10 @@ struct graph_gen_data_t {
 };
 
 int create_graph(graph_gen_data_t *ggi, dist_graph_t *g);
+int create_graph_weighted(graph_gen_data_t *ggi, dist_graph_t *g);
 
 int create_graph_serial(graph_gen_data_t *ggi, dist_graph_t *g);
+int create_graph_serial_weighted(graph_gen_data_t *ggi, dist_graph_t *g);
 
 int create_graph(dist_graph_t* g, 
           uint64_t n_global, uint64_t m_global, 

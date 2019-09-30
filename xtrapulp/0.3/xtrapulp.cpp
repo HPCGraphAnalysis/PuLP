@@ -322,24 +322,28 @@ extern "C" int create_xtrapulp_dist_graph(
 {
   MPI_Comm_rank(MPI_COMM_WORLD, &procid);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+
   if (nprocs > 1)
   {
-    create_graph(g, (uint64_t)n_global, (uint64_t)m_global, 
-                 (uint64_t)n_local, (uint64_t)m_local,
-                 (uint64_t*)local_offsets, (uint64_t*)local_adjs, 
-                 (uint64_t*)global_ids,
-                 (int32_t*)vertex_weights, (int32_t*)edge_weights);
+    create_graph(
+        g, (uint64_t)n_global, (uint64_t)m_global, 
+        (uint64_t)n_local, (uint64_t)m_local,
+        (uint64_t*)local_offsets, (uint64_t*)local_adjs, 
+        (uint64_t*)global_ids, (uint64_t)num_vert_weights,
+        (int32_t*)vertex_weights, (int32_t*)edge_weights);
     relabel_edges(g, vert_dist);
   }
   else
   {
-    create_graph_serial(g, (uint64_t)n_global, (uint64_t)m_global, 
-                 (uint64_t)n_local, (uint64_t)m_local,
-                 (uint64_t*)local_offsets, (uint64_t*)local_adjs,
-                 (int32_t*)vertex_weights, (int32_t*)edge_weights);
+    create_graph_serial(
+        g, (uint64_t)n_global, (uint64_t)m_global, 
+        (uint64_t)n_local, (uint64_t)m_local,
+        (uint64_t*)local_offsets, (uint64_t*)local_adjs,
+        (uint64_t)num_vert_weights,
+        (int32_t*)vertex_weights, (int32_t*)edge_weights);
   }
 
-  if (num_vert_weights == 0)
+  if (num_vert_weights == 0) 
     get_ghost_degrees(g);
 
   return 0;

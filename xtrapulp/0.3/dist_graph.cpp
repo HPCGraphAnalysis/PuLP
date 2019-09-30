@@ -392,7 +392,7 @@ int create_graph(dist_graph_t* g,
           uint64_t n_global, uint64_t m_global, 
           uint64_t n_local, uint64_t m_local,
           uint64_t* local_offsets, uint64_t* local_adjs, 
-          uint64_t* global_ids,
+          uint64_t* global_ids, uint64_t num_vert_weights,
           int32_t* vert_weights, int32_t* edge_weights)
 { 
   if (debug) { printf("Task %d create_graph() start\n", procid); }
@@ -409,24 +409,42 @@ int create_graph(dist_graph_t* g,
   g->m_local = m_local;
   g->vert_weights = NULL;
   g->edge_weights = NULL;
-  g->num_vert_weights = 0;
+  g->vert_weights_sums = NULL;
+  g->edge_weights_sum = 0;
+  g->max_vert_weights = NULL;
+  g->max_edge_weight = 0;
+  g->num_vert_weights = num_vert_weights;
+  g->num_edge_weights = 0;
   g->map = (struct fast_map*)malloc(sizeof(struct fast_map));
-  g->vert_weights_sums = (int64_t*)malloc(sizeof(int64_t));
 
   g->out_edges = local_adjs;
   g->out_degree_list = local_offsets;
-  if (vert_weights != NULL) 
+
+  if (g->num_vert_weights > 0)
   {
     g->vert_weights = vert_weights;
-    g->vert_weights_sums[0] = 0;
-    for (uint64_t i = 0; i < g->n_local; ++i)
-      g->vert_weights_sums[0] += g->vert_weights[i];
-    MPI_Allreduce(MPI_IN_PLACE, &g->vert_weights_sums[0], 1, 
+    g->edge_weights = edge_weights;
+    g->num_edge_weights = 1;
+    g->vert_weights_sums = 
+        (int64_t*)malloc(g->num_vert_weights*sizeof(int64_t));
+    g->max_vert_weights = 
+        (int32_t*)malloc(g->num_vert_weights*sizeof(int32_t));
+
+    for (uint64_t w = 0; w < g->num_vert_weights; ++w)
+    {
+      g->vert_weights_sums[w] = 0;
+      g->max_vert_weights[w] = 0;
+      for (uint64_t i = 0; i < g->n_local; ++i) 
+      {
+        int32_t weight = g->vert_weights[i*g->num_vert_weights + w];
+        g->vert_weights_sums[w] += weight;
+        if (weight > g->max_vert_weights[w])
+          g->max_vert_weights[w] = weight;
+      }
+    }
+    MPI_Allreduce(MPI_IN_PLACE, g->vert_weights_sums, g->num_vert_weights, 
                   MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
   }
-  else g->vert_weights = NULL;
-  if (edge_weights != NULL) g->edge_weights = edge_weights;
-  else g->edge_weights = NULL;
 
   g->local_unmap = (uint64_t*)malloc(g->n_local*sizeof(uint64_t));
   if (g->local_unmap == NULL)
@@ -450,6 +468,7 @@ int create_graph_serial(dist_graph_t* g,
           uint64_t n_global, uint64_t m_global, 
           uint64_t n_local, uint64_t m_local,
           uint64_t* local_offsets, uint64_t* local_adjs,
+          uint64_t num_vert_weights,
           int32_t* vert_weights, int32_t* edge_weights)
 {
   if (debug) { printf("Task %d create_graph_serial() start\n", procid); }
@@ -468,8 +487,39 @@ int create_graph_serial(dist_graph_t* g,
   g->n_total = g->n_local;
   g->vert_weights = NULL;
   g->edge_weights = NULL;
-  g->num_vert_weights = 0;
+  g->vert_weights_sums = NULL;
+  g->edge_weights_sum = 0;
+  g->max_vert_weights = NULL;
+  g->max_edge_weight = 0;
+  g->num_vert_weights = num_vert_weights;
+  g->num_edge_weights = 0;
   g->map = (struct fast_map*)malloc(sizeof(struct fast_map));
+
+  if (g->num_vert_weights > 0)
+  {
+    g->vert_weights = vert_weights;
+    g->edge_weights = edge_weights;
+    g->num_edge_weights = 1;
+    g->vert_weights_sums = 
+        (int64_t*)malloc(g->num_vert_weights*sizeof(int64_t));
+    g->max_vert_weights = 
+        (int32_t*)malloc(g->num_vert_weights*sizeof(int32_t));
+
+    for (uint64_t w = 0; w < g->num_vert_weights; ++w)
+    {
+      g->vert_weights_sums[w] = 0;
+      g->max_vert_weights[w] = 0;
+      for (uint64_t i = 0; i < g->n_local; ++i) 
+      {
+        int32_t weight = g->vert_weights[i*g->num_vert_weights + w];
+        g->vert_weights_sums[w] += weight;
+        if (weight > g->max_vert_weights[w])
+          g->max_vert_weights[w] = weight;
+      }
+    }
+    MPI_Allreduce(MPI_IN_PLACE, g->vert_weights_sums, g->num_vert_weights, 
+                  MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+  }
 
   g->out_edges = local_adjs;
   g->out_degree_list = local_offsets;

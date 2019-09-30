@@ -88,13 +88,15 @@ int create_graph_serial_weighted(graph_gen_data_t *ggi, dist_graph_t *g);
 int create_graph(dist_graph_t* g, 
           uint64_t n_global, uint64_t m_global, 
           uint64_t n_local, uint64_t m_local,
-          uint64_t* local_offsets, uint64_t* local_adjs, uint64_t* global_ids,
+          uint64_t* local_offsets, uint64_t* local_adjs, 
+          uint64_t* global_ids, uint64_t num_vert_weights,
           int32_t* vertex_weights, int32_t* edge_weights);
 
 int create_graph_serial(dist_graph_t* g, 
           uint64_t n_global, uint64_t m_global, 
           uint64_t n_local, uint64_t m_local,
           uint64_t* local_offsets, uint64_t* local_adjs,
+          uint64_t num_vert_weights,
           int32_t* vertex_weights, int32_t* edge_weights);
 
 int clear_graph(dist_graph_t *g);

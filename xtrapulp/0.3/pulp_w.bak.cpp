@@ -73,7 +73,7 @@ extern float X,Y;
 int pulp_w(
   dist_graph_t* g, mpi_data_t* comm, queue_data_t* q, pulp_data_t *pulp,
   uint64_t outer_iter, uint64_t balance_iter, uint64_t refine_iter, 
-  double* constraints, bool do_maxcut_balance)
+  double* constraints)
 { 
   if (debug) { printf("Task %d pulp_v_weighted() start\n", procid); }
   double elt = 0.0;
@@ -82,7 +82,7 @@ int pulp_w(
     elt = omp_get_wtime();
   }
 
-  //bool balance_cut = false;
+  bool balance_cut = false;
   //bool balance_achieved = false;
   //g->num_vert_weights = 3;
 
@@ -140,8 +140,8 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
 #pragma omp single
 {
-  //part_eval_weighted(g, pulp);
-  //update_pulp_data_weighted(g, pulp);
+  part_eval_weighted(g, pulp);
+  update_pulp_data_weighted(g, pulp);
   if (procid == 0) printf("EVAL balance ------------------------------\n");
   num_swapped_1 = 0;
 }
@@ -158,7 +158,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       //  printf("%d, %lu %lu %lf %lf\n", 
       //    procid, cur_bal_iter, w, pulp->maxes[w], pulp->weight_exponents[w]);
     }
-    if (do_maxcut_balance) {
+    if (balance_cut) {
       pulp->avg_cut_size = (double)pulp->cut_size / (double)pulp->num_parts;
       for (int32_t p = 0; p < pulp->num_parts; ++p) {
         if ((double)pulp->part_cut_sizes[p] / pulp->avg_cut_size > pulp->max_c)
@@ -207,7 +207,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
         }
 
         tp.part_counts[p] *= sum_gain;
-        if (do_maxcut_balance && tp.part_cut_weights[p] > 0.0)
+        if (balance_cut && tp.part_cut_weights[p] > 0.0)
           tp.part_counts[p] *= tp.part_cut_weights[p];
 
         if (tp.part_counts[p] == max_val && tp.part_counts[p] != 0.0) {
@@ -234,7 +234,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
         ++num_swapped_1;        
 
-        if (do_maxcut_balance) {
+        if (balance_cut) {
           int64_t diff_part = 2*part_count - (int64_t)out_degree;
           int64_t diff_max_part = (int64_t)(out_degree) - 2*max_count;
           int64_t diff_cut = part_count - max_count;
@@ -264,7 +264,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
             constraints[w] * pulp->avg_sizes[w] / 
             ((double)pulp->part_sizes[w][max_part] + multiplier*(double)pulp->part_size_changes[w][max_part]) - 1.0;
         
-          if (do_maxcut_balance) {
+          if (balance_cut) {
             double avg_cut_size = (double)pulp->cut_size / (double)pulp->num_parts;
             tp.part_cut_weights[part] =
               pulp->max_c * avg_cut_size /
@@ -351,7 +351,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       MPI_Allreduce(MPI_IN_PLACE, pulp->part_size_changes[w], pulp->num_parts, 
         MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
 
-    if (do_maxcut_balance) {
+    if (balance_cut) {
       MPI_Allreduce(MPI_IN_PLACE, pulp->part_cut_size_changes, pulp->num_parts,
         MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &pulp->cut_size_change, 1,
@@ -361,7 +361,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
       for (int32_t p = 0; p < pulp->num_parts; ++p) {
         pulp->part_cut_sizes[p] += pulp->part_cut_size_changes[p];
         pulp->part_cut_size_changes[p] = 0;
-        if (do_maxcut_balance) {
+        if (balance_cut) {
           if ((double)pulp->part_cut_sizes[p] / pulp->avg_cut_size > pulp->max_c)
             pulp->max_c = (double)pulp->part_cut_sizes[p] / pulp->avg_cut_size;
           tp.part_cut_weights[p] = pulp->max_c * pulp->avg_cut_size / (double)pulp->part_cut_sizes[p] - 1.0;
@@ -415,8 +415,8 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
 #pragma omp single
 {  
-  //part_eval_weighted(g, pulp);
-  //update_pulp_data_weighted(g, pulp);
+  part_eval_weighted(g, pulp);
+  update_pulp_data_weighted(g, pulp);
   if (procid == 0) printf("EVAL refine ------------------------------\n");
   num_swapped_2 = 0;
 
@@ -435,6 +435,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
     for (uint64_t vert_index = 0; vert_index < g->n_local; ++vert_index)
     {
       int32_t part = pulp->local_parts[vert_index];
+      
 
       for (int32_t p = 0; p < pulp->num_parts; ++p)
         tp.part_counts[p] = 0.0;

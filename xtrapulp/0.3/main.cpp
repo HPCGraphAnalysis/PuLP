@@ -88,8 +88,8 @@ void print_usage_full(char** argv)
   printf("\t-c:\n");
   printf("\t\tMinimize per-part cut in addition to edge cut\n");
   printf("\t-d:\n");
-  printf("\t\tUse round-robin instead of vertex-based distribution\n");
-  printf("\t\t\t (Might help with load imbalance)\n");
+  printf("\t\tUse round-robin instead of vertex-block distribution\n");
+  printf("\t\t\t (Might help with load imbalance, might hurt quality)\n");
   printf("\t-l:\n");
   printf("\t\tDo label propagation-based initialization\n");
   printf("\t-m [#]:\n");
@@ -286,12 +286,14 @@ int main(int argc, char **argv)
 
   dist_graph_t* g = (dist_graph_t*)malloc(sizeof(dist_graph_t));
   mpi_data_t* comm = (mpi_data_t*)malloc(sizeof(mpi_data_t));
-  init_comm_data(comm);
-  
+  pulp_data_t* pulp = (pulp_data_t*)malloc(sizeof(pulp_data_t));
+  queue_data_t* q = (queue_data_t*)malloc(sizeof(queue_data_t));
+  init_comm_data(comm);  
   if (nprocs > 1)
   {
     if (ggi->num_vert_weights > 0) {
       exchange_edges_weighted(ggi, comm);
+      //exchange_verts_weighted(ggi, comm);
       create_graph_weighted(ggi, g);
     } else {
       exchange_edges(ggi, comm);
@@ -307,13 +309,14 @@ int main(int argc, char **argv)
       create_graph_serial(ggi, g);
     }
   }
-
-  queue_data_t* q = (queue_data_t*)malloc(sizeof(queue_data_t));
+  if (ggi->num_vert_weights > 0) {
+    init_pulp_data_weighted(g, pulp, num_parts);
+  } else {
+    init_pulp_data(g, pulp, num_parts);
+  }
   init_queue_data(g, q);
   get_ghost_degrees(g, comm, q);
 
-  pulp_data_t* pulp = (pulp_data_t*)malloc(sizeof(pulp_data_t));
-  init_pulp_data(g, pulp, num_parts);
   pulp_part_control_t* ppc = 
       (pulp_part_control_t*)malloc(sizeof(pulp_part_control_t));
   *ppc = {
@@ -338,7 +341,12 @@ int main(int argc, char **argv)
 
     if (procid == 0) printf("Starting Partitioning\n");
     elt = omp_get_wtime();
-    xtrapulp(g, ppc, comm, pulp, q);
+
+    if (ggi->num_vert_weights > 0)
+      xtrapulp_weighted(g, ppc, comm, pulp, q);
+    else 
+      xtrapulp(g, ppc, comm, pulp, q);
+
     total_elt += omp_get_wtime() - elt;
     elt = omp_get_wtime() - elt;
     if (procid == 0) printf("Partitioning Finished\n");

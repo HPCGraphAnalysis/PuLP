@@ -464,7 +464,7 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
         int64_t new_edge_size = (int64_t)pulp->avg_edge_size;
         double avg_cut_size = (double)pulp->cut_size / (double)pulp->num_parts;
         int64_t new_cut_size = (int64_t)avg_cut_size;
-        int64_t new_max_cut_size = (int64_t)avg_cut_size;
+        //int64_t new_max_cut_size = (int64_t)avg_cut_size;
 
         pulp->part_vert_size_changes[max_part] + 1 < 0 ? 
           new_size = pulp->part_vert_sizes[max_part] + pulp->part_vert_size_changes[max_part] + 1 :
@@ -482,11 +482,10 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
           new_cut_size = pulp->part_cut_sizes[max_part] + pulp->part_cut_size_changes[max_part] + out_degree - 2*max_count :
           new_cut_size = (int64_t)((double)pulp->part_cut_sizes[max_part] + multiplier*(double)pulp->part_cut_size_changes[max_part] + (double)(out_degree) - 2.0*(double)max_count);
 
-
         if (new_size < (int64_t)(pulp->avg_vert_size*vert_balance) &&
           new_edge_size < (int64_t)(pulp->avg_edge_size*pulp->max_e) &&
-          new_cut_size < (int64_t)(avg_cut_size*pulp->max_c) &&
-          new_max_cut_size < (int64_t)(avg_cut_size*pulp->max_c) )
+          new_cut_size < (int64_t)(avg_cut_size*pulp->max_c) )// &&
+          //new_max_cut_size < (int64_t)(avg_cut_size*pulp->max_c) )
         {
           ++num_swapped_2;
           int64_t diff_part = 2*part_count - (int64_t)out_degree;

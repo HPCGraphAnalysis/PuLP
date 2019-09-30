@@ -99,6 +99,9 @@ void clear_thread_pulp(thread_pulp_t* tp);
 
 void init_pulp_data(dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts);
 
+void init_pulp_data_weighted(
+  dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts);
+
 void update_pulp_data(dist_graph_t* g, pulp_data_t* pulp);
 
 void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp);

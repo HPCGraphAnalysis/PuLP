@@ -298,7 +298,7 @@ extern "C" int xtrapulp_weighted(
 
   pulp_w(g, comm, q, pulp, 
     outer_iter, balance_iter, refine_iter, 
-    ppc->constraints);
+    ppc->constraints, ppc->do_maxcut_balance);
 
   elt2 = omp_get_wtime() - elt2;
   if (procid == 0 && verbose) 

@@ -156,7 +156,7 @@ int create_graph_weighted(graph_gen_data_t *ggi, dist_graph_t *g)
   g->m_local = ggi->m_local_edges;
   g->map = (struct fast_map*)malloc(sizeof(struct fast_map));
 
-  g->vert_weights = NULL;
+  g->vert_weights = ggi->vert_weights;
   g->edge_weights = NULL; 
   g->vert_weights_sums = ggi->vert_weights_sums;
   g->edge_weights_sum  = ggi->edge_weights_sum;
@@ -199,7 +199,6 @@ int create_graph_weighted(graph_gen_data_t *ggi, dist_graph_t *g)
   }
   
   free(ggi->gen_edges);
-  free(ggi->edge_weights);
   free(temp_counts);
   g->out_edges = out_edges;
   g->out_degree_list = out_degree_list;
@@ -317,12 +316,12 @@ int create_graph_serial_weighted(graph_gen_data_t *ggi, dist_graph_t *g)
   g->n_local = ggi->n_local;
   g->n_offset = 0;
   g->m = ggi->m;
-  g->m_local = ggi->m_local_edges;
+  g->m_local = ggi->m_local_read;
   g->n_ghost = 0;
   g->n_total = g->n_local;
   g->map = (struct fast_map*)malloc(sizeof(struct fast_map));
 
-  g->vert_weights = NULL;
+  g->vert_weights = ggi->vert_weights;
   g->edge_weights = NULL;
   g->vert_weights_sums = ggi->vert_weights_sums;
   g->edge_weights_sum  = ggi->edge_weights_sum;
@@ -349,17 +348,17 @@ int create_graph_serial_weighted(graph_gen_data_t *ggi, dist_graph_t *g)
     temp_counts[i] = 0;
 }
 
-  for (uint64_t i = 0; i < g->m_local*3; i+=3)
+  for (uint64_t i = 0; i < g->m_local*2; i+=2)
     ++temp_counts[ggi->gen_edges[i] - g->n_offset];
   for (uint64_t i = 0; i < g->n_local; ++i)
     out_degree_list[i+1] = out_degree_list[i] + temp_counts[i];
   memcpy(temp_counts, out_degree_list, g->n_local*sizeof(uint64_t));
 
-  for (uint64_t i = 0; i < g->m_local*3; i+=3) {
+  for (uint64_t i = 0; i < g->m_local*2; i+=2) {
     out_edges[temp_counts[ggi->gen_edges[i] - g->n_offset]] = 
         ggi->gen_edges[i+1];
     edge_weights[temp_counts[ggi->gen_edges[i] - g->n_offset]] = 
-        (int32_t)ggi->gen_edges[i+2];
+        (int32_t)ggi->edge_weights[i/2];
     ++temp_counts[ggi->gen_edges[i] - g->n_offset];
   }
 

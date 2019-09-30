@@ -5,6 +5,6 @@ int pulp_w(
   dist_graph_t* g, mpi_data_t* comm, 
   queue_data_t* q, pulp_data_t *pulp,            
   uint64_t outer_iter, uint64_t balance_iter, uint64_t refine_iter, 
-  double* constraints);
+  double* constraints, bool do_maxcut_balance);
 
 #endif

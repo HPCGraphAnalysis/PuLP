@@ -64,6 +64,12 @@ void init_thread_pulp(thread_pulp_t* tp, pulp_data_t* pulp)
   tp->part_vert_weights = (double*)malloc(pulp->num_parts*sizeof(double));
   tp->part_edge_weights = (double*)malloc(pulp->num_parts*sizeof(double));
   tp->part_cut_weights = (double*)malloc(pulp->num_parts*sizeof(double));
+  for (int32_t p = 0; p < pulp->num_parts; ++p) {
+    tp->part_counts[p] = 0.0;
+    tp->part_vert_weights[p] = 0.0;
+    tp->part_edge_weights[p] = 0.0;
+    tp->part_cut_weights[p] = 0.0;
+  }
  
   //if (debug) printf("Task %d init_thread_pulp() success\n", procid);
 }
@@ -81,10 +87,17 @@ void init_thread_pulp(thread_pulp_t* tp, pulp_data_t* pulp,
   tp->part_vert_weights = NULL;
   tp->part_edge_weights = NULL;
   tp->part_cut_weights = (double*)malloc(pulp->num_parts*sizeof(double));
+
+   for (int32_t p = 0; p < pulp->num_parts; ++p) {
+    tp->part_counts[p] = 0.0;
+    tp->part_cut_weights[p] = 0.0;
+    for (uint64_t w = 0; w < num_vert_weights; ++w) {
+      tp->part_weights[w][p] = 0.0;
+    }
+  }
  
   //if (debug) printf("Task %d init_thread_pulp() success\n", procid);
 }
-
 
 void clear_thread_pulp(thread_pulp_t* tp)
 {
@@ -171,8 +184,10 @@ void update_pulp_data(dist_graph_t* g, pulp_data_t* pulp)
 {
   for (int32_t p = 0; p < pulp->num_parts; ++p)
   {
+    pulp->part_vert_sizes[p] = 0;
     pulp->part_edge_sizes[p] = 0;
     pulp->part_cut_sizes[p] = 0;
+    pulp->part_vert_size_changes[p] = 0;
     pulp->part_edge_size_changes[p] = 0;
     pulp->part_cut_size_changes[p] = 0;
   }
@@ -230,7 +245,7 @@ void update_pulp_data(dist_graph_t* g, pulp_data_t* pulp)
 void init_pulp_data_weighted(
   dist_graph_t* g, pulp_data_t* pulp, int32_t num_parts)
 {
-  if (debug) printf("Task %d init_pulp_data() start\n", procid); 
+  if (debug) printf("Task %d init_pulp_data_weighted() start\n", procid); 
 
   pulp->num_parts = num_parts;
   pulp->avg_sizes = (double*)malloc(g->num_vert_weights*sizeof(double));
@@ -273,7 +288,7 @@ void init_pulp_data_weighted(
       pulp->part_cut_sizes == NULL || 
       pulp->part_size_changes == NULL || 
       pulp->part_cut_size_changes == NULL)
-    throw_err("init_pulp_data(), unable to allocate resources", procid);
+    throw_err("init_pulp_data_weighted(), unable to allocate resources", procid);
 
   pulp->cut_size = 0;
   pulp->max_cut = 0;
@@ -289,14 +304,19 @@ void init_pulp_data_weighted(
   for (int32_t p = 0; p < pulp->num_parts; ++p)
     pulp->part_cut_sizes[p] = 0;
   for (int32_t p = 0; p < pulp->num_parts; ++p)
-    pulp->part_cut_size_changes[p] = 0;
+    pulp->part_cut_size_changes[p] = 0;  
+
+  for (uint64_t w = 0; w < g->num_vert_weights; ++w)
+    pulp->maxes[w] = 0.0;
   
-  if (debug) printf("Task %d init_pulp_data() success\n", procid);
+  if (debug) printf("Task %d init_pulp_data_weighted() success\n", procid);
 }
 
 
 void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp)
 {
+  if (debug) printf("Task %d update_pulp_data_weighted() start\n", procid); 
+
   for (int32_t p = 0; p < pulp->num_parts; ++p)
   {
     for (uint64_t w = 0; w < g->num_vert_weights; ++w) {
@@ -360,6 +380,7 @@ void update_pulp_data_weighted(dist_graph_t* g, pulp_data_t* pulp)
     }
   }
 
+  if (debug) printf("Task %d update_pulp_data_weighted() success\n", procid);
 }
 
 

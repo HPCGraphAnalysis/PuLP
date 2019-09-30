@@ -271,20 +271,39 @@ int read_adj(char* input_filename,
   ggi->gen_edges = (uint64_t*)malloc(ggi->m*sizeof(uint64_t));
   ggi->edge_weights_sum = 0;
   ggi->max_edge_weight = 0;
-  if (ggi->num_edge_weights == 0 && ggi->num_vert_weights == 0) {
+  if (ggi->num_edge_weights == 0 && ggi->num_vert_weights == 0) 
+  {
+    // unweighted
     ggi->vert_weights = NULL;
     ggi->edge_weights = NULL;
     ggi->vert_weights_sums = NULL;
-  } else if (ggi->num_vert_weights == 0) {
+    ggi->max_vert_weights = NULL;
+  } 
+  else if (ggi->num_vert_weights == 0) 
+  {
+    // edge weights but no vertex weights
     ggi->vert_weights = (int32_t*)malloc(ggi->n*sizeof(int32_t));
     ggi->vert_weights_sums = (int64_t*)malloc(sizeof(int64_t));
     ggi->edge_weights = (int32_t*)malloc(ggi->m/2*sizeof(int32_t));
-  } else {
+    ggi->max_vert_weights = 
+        (int32_t*)malloc(ggi->num_vert_weights*sizeof(int32_t));
+    ggi->max_vert_weights[0] = 1;
+    ggi->vert_weights_sums[0] = 0;
+  } 
+  else 
+  { 
+    // vertex weights, maybe edge weights (will get set to unit weight if no)
     ggi->vert_weights = 
         (int32_t*)malloc(ggi->num_vert_weights*ggi->n*sizeof(int32_t));
     ggi->vert_weights_sums = 
         (int64_t*)malloc(ggi->num_vert_weights*sizeof(int64_t));
     ggi->edge_weights = (int32_t*)malloc(ggi->m/2*sizeof(int32_t));
+    ggi->max_vert_weights = 
+        (int32_t*)malloc(ggi->num_vert_weights*sizeof(int32_t));
+    for (uint64_t w = 0; w < ggi->num_vert_weights; ++w) {
+      ggi->max_vert_weights[w] = 0;
+      ggi->vert_weights_sums[w] = 0;
+    }
   }
 
   uint64_t count = 0;     // count for edges
@@ -305,6 +324,8 @@ int read_adj(char* input_filename,
       int32_t weight = (int32_t)atoi(val.c_str());
       ggi->vert_weights[(src * ggi->num_vert_weights) + w] = weight;
       ggi->vert_weights_sums[w] += weight;
+      if (weight > ggi->max_vert_weights[w])
+        ggi->max_vert_weights[w] = weight;
     }
 
     if (ggi->num_vert_weights == 0 && ggi->num_edge_weights > 0)
@@ -349,9 +370,6 @@ int read_adj(char* input_filename,
 
   infile.close();
 
-  ggi->n_offset = 0;
-  ggi->n_local = ggi->n / (uint64_t)nprocs + 1;
-  if (nprocs == 1) ggi->n_local = ggi->n;
 
   if (offset_vids)
   {
@@ -367,14 +385,12 @@ int read_adj(char* input_filename,
       if (new_vid > n_global)
         n_global = new_vid;
     }
-
-    ggi->n = n_global+1;
-    if (nprocs == 1) ggi->n_local = ggi->n;
+    n_global += 1;
 
     int32_t* new_vert_weights = 
-        (int32_t*)malloc(ggi->n*ggi->num_vert_weights*sizeof(int32_t));
+        (int32_t*)malloc(n_global*ggi->num_vert_weights*sizeof(int32_t));
 #pragma omp parallel for
-    for (uint64_t i = 0; i < ggi->n*ggi->num_vert_weights; ++i)
+    for (uint64_t i = 0; i < n_global*ggi->num_vert_weights; ++i)
       new_vert_weights[i] = 0;
 
 #pragma omp parallel for
@@ -389,10 +405,11 @@ int read_adj(char* input_filename,
             ggi->vert_weights[i*ggi->num_vert_weights + w];
       }
     }
-
+    ggi->n = n_global;
     free(ggi->vert_weights);
     ggi->vert_weights = new_vert_weights;
   }
+
 
   return 0;
 }
@@ -411,8 +428,6 @@ int read_graph(char* input_filename,
     sscanf(line.c_str(), "%lu %lu %d %lu", 
       &ggi->n, &ggi->m, &format, &ggi->num_vert_weights);
     infile.close();
-
-    MPI_Bcast(&ggi->n, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
 
     switch(format)
     {
@@ -454,87 +469,87 @@ int read_graph(char* input_filename,
     read_adj(input_filename, ggi, offset_vids);
 
     // Do exchange of relevant info
+    MPI_Bcast(&ggi->n, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+    ggi->n_offset = 0;
+    ggi->n_local = ggi->n / (uint64_t)nprocs + 1;
+    if (nprocs == 1) ggi->n_local = ggi->n;
+
     MPI_Bcast(&ggi->m, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
     MPI_Bcast(&ggi->num_vert_weights, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
     MPI_Bcast(&ggi->num_edge_weights, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
     ggi->m_local_read = (ggi->m/2);
-/*    
-    ggi->m_local_read = (ggi->m/2) / nprocs;
-    uint64_t* new_gen_edges = 
-        (uint64_t*)malloc(2*(ggi->m_local_read + nprocs)*sizeof(uint64_t));
-    MPI_Scatter(new_gen_edges, ggi->m_local_read*2, MPI_UINT64_T, 
-                ggi->gen_edges, ggi->m_local_read*2, MPI_UINT64_T,
-                0, MPI_COMM_WORLD);
 
-    // take remainder for procid = 0
-    uint64_t new_m_local_read = (ggi->m - ggi->m_local_read*2*(nprocs-1)) / 2;
-    memcpy( &new_gen_edges[ggi->m_local_read*2],
-            &ggi->gen_edges[ggi->m_local_read*2*(nprocs-1)],
-            new_m_local_read*2*sizeof(uint64_t) );
-    free(ggi->gen_edges);
-    ggi->gen_edges = new_gen_edges;
 
-    if (ggi->num_edge_weights > 0) {
-      uint64_t* new_edge_weights = 
-          (uint64_t*)malloc(2*new_m_local_read*sizeof(uint64_t));
-      MPI_Scatter(ggi->edge_weights, ggi->m_local_read, MPI_UINT64_T, 
-                  ggi->edge_weights, ggi->m_local_read, MPI_UINT64_T,
-                  0, MPI_COMM_WORLD);
-      memcpy( &new_edge_weights[ggi->m_local_read],
-              &ggi->edge_weights[ggi->m_local_read*(nprocs-1)],
-              new_m_local_read*sizeof(uint64_t) );
+    if (ggi->num_vert_weights > 0) {
+      MPI_Bcast(ggi->max_vert_weights, ggi->num_vert_weights, 
+                MPI_INT32_T, 0, MPI_COMM_WORLD);
+      MPI_Bcast(ggi->vert_weights_sums, ggi->num_vert_weights, 
+                MPI_INT64_T, 0, MPI_COMM_WORLD);
 
-      MPI_Scatter(ggi->vert_weights, ggi->n_local, MPI_UINT64_T, 
-                  ggi->vert_weights, ggi->n_local, MPI_UINT64_T,
-                  0, MPI_COMM_WORLD);
+      int32_t* new_vert_weights = 
+          (int32_t*)malloc(ggi->n_local*ggi->num_vert_weights*sizeof(int32_t));
+      int32_t* sendcounts = (int32_t*)malloc(nprocs*sizeof(int32_t));
+      int32_t* sendoffsets = (int32_t*)malloc(nprocs*sizeof(int32_t));
+
+      for (int32_t i = 0; i < nprocs; ++i) {
+        sendcounts[i] = 
+            (int32_t)(ggi->n / (uint64_t)nprocs + 1) * ggi->num_vert_weights;
+        sendoffsets[i] = 
+            (int32_t)((uint64_t)procid * (ggi->n / (uint64_t)nprocs + 1)) *
+              ggi->num_vert_weights;
+      }
+      sendoffsets[nprocs-1] = 
+          (int32_t)((uint64_t)(nprocs-1) * (ggi->n / (uint64_t)nprocs + 1)) * 
+            ggi->num_vert_weights;
+      sendcounts[nprocs-1] = 
+          ggi->n * ggi->num_vert_weights - sendoffsets[nprocs-1];
+
+      //for (int32_t i = 0; i < nprocs; ++i)
+      //  printf("%d - %d %d %d %d\n", procid, sendcounts[i], recvcounts[i], 
+      //    sendoffsets[i], recvoffsets[i]);
+
+      MPI_Scatterv(ggi->vert_weights, sendcounts, sendoffsets, MPI_INT32_T,
+                    new_vert_weights, ggi->n_local * ggi->num_vert_weights, 
+                    MPI_INT32_T, 0, MPI_COMM_WORLD);
+      free(sendcounts);
+      free(sendoffsets);
+      free(ggi->vert_weights);
+      ggi->vert_weights = new_vert_weights;
     }
-*/
+
   } else {
     // we do this first to ensure that n_offsets and n_locals are consistent
     MPI_Bcast(&ggi->n, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
     ggi->n_offset = (uint64_t)procid * (ggi->n / (uint64_t)nprocs + 1);
     ggi->n_local = ggi->n / (uint64_t)nprocs + 1;
-    if (procid == nprocs - 1 && !offset_vids)
-      ggi->n_local = ggi->n - ggi->n_offset + 1;
-
-    // procid=0 does file parsing here in read_adj()
-
-    if (offset_vids) {
-      // we (likely) have a new maximum vertex ID
-      MPI_Bcast(&ggi->n, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
-      if (procid == nprocs - 1)
-        ggi->n_local = ggi->n - ggi->n_offset;
-    }
+    if (procid == nprocs - 1)
+      ggi->n_local = ggi->n - ggi->n_offset;
 
     MPI_Bcast(&ggi->m, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
     MPI_Bcast(&ggi->num_vert_weights, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
     MPI_Bcast(&ggi->num_edge_weights, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
     ggi->m_local_read = 0;
+    ggi->gen_edges = NULL;
     ggi->vert_weights = NULL;
     ggi->edge_weights = NULL;
-/*
-    // intentionally rounding down for scatter, procid=0 retains extra edges
-    ggi->m_local_read = (ggi->m/2) / nprocs;
-    ggi->gen_edges = 
-        (uint64_t*)malloc((ggi->m_local_read)*2*sizeof(uint64_t));
-    MPI_Scatter(NULL, 0, NULL, 
-                ggi->gen_edges, ggi->m_local_read*2, MPI_UINT64_T,
-                0, MPI_COMM_WORLD);
 
-    if (ggi->num_edge_weights > 0) {
-      ggi->edge_weights = (int32_t*)malloc(ggi->m_local_read*sizeof(int32_t));
-      MPI_Scatter(NULL, 0, NULL,
-                  ggi->edge_weights, ggi->m_local_read, MPI_UINT64_T,
-                  0, MPI_COMM_WORLD);
+    if (ggi->num_vert_weights > 0) {
+      ggi->max_vert_weights = 
+          (int32_t*)malloc(ggi->num_vert_weights*sizeof(int32_t));
+      ggi->vert_weights_sums = 
+          (int64_t*)malloc(ggi->num_vert_weights*sizeof(int64_t));
+      MPI_Bcast(ggi->max_vert_weights, ggi->num_vert_weights, 
+                MPI_INT32_T, 0, MPI_COMM_WORLD);
+      MPI_Bcast(ggi->vert_weights_sums, ggi->num_vert_weights, 
+                MPI_INT64_T, 0, MPI_COMM_WORLD);
 
       ggi->vert_weights = 
           (int32_t*)malloc(ggi->n_local*ggi->num_vert_weights*sizeof(int32_t));
-      MPI_Scatter(NULL, 0, NULL, 
-                  ggi->vert_weights, ggi->n_local*ggi->num_vert_weights, 
-                  MPI_UINT64_T, 0, MPI_COMM_WORLD);
-    }
-*/
 
+      MPI_Scatterv(NULL, NULL, NULL, MPI_INT32_T,
+                    ggi->vert_weights, ggi->n_local*ggi->num_vert_weights, 
+                    MPI_INT32_T, 0, MPI_COMM_WORLD);
+    }
   }
 
   return 0;
@@ -807,10 +822,10 @@ int exchange_edges_weighted(graph_gen_data_t *ggi, mpi_data_t* comm)
     free(sendbuf);
   }
 
-  free(ggi->gen_edges);
-  free(ggi->edge_weights);
+  if (ggi->gen_edges != NULL) free(ggi->gen_edges);
+  if (ggi->edge_weights != NULL) free(ggi->edge_weights);
   ggi->gen_edges = recvbuf;
-  ggi->m_local_edges = total_recv / 2;
+  ggi->m_local_edges = total_recv / 3;
 
   if (verbose) {
     elt = omp_get_wtime() - elt;

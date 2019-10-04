@@ -666,12 +666,13 @@ int set_weights_graph(dist_graph_t *g)
     elt = omp_get_wtime();
   }
 
-  g->num_vert_weights = 2;
+  g->num_vert_weights = 3;
+  g->num_edge_weights = 3;
   g->vert_weights = 
       (int32_t*)malloc(g->num_vert_weights*g->n_local*sizeof(int32_t));
   g->edge_weights = (int32_t*)malloc(g->m_local*2*sizeof(int32_t));
-  g->max_vert_weights = (int32_t*)malloc((g->num_vert_weights+1)*sizeof(int32_t));
-  g->vert_weights_sums = (int64_t*)malloc((g->num_vert_weights+1)*sizeof(int64_t));
+  g->max_vert_weights = (int32_t*)malloc((g->num_vert_weights)*sizeof(int32_t));
+  g->vert_weights_sums = (int64_t*)malloc((g->num_vert_weights)*sizeof(int64_t));
 
   for (uint64_t w = 0; w < g->num_vert_weights; ++w) {
     g->max_vert_weights[w] = 1;
@@ -686,7 +687,7 @@ int set_weights_graph(dist_graph_t *g)
     if ((int32_t)out_degree(g, v) > g->max_vert_weights[1])
       g->max_vert_weights[1] = (int32_t)out_degree(g, v);
 
-    if (g->num_vert_weights > 2) {
+  if (g->num_vert_weights > 2) {
     uint64_t sum_neighbors = 0;
     uint64_t* outs = out_vertices(g, v);
     for (uint64_t i = 0; i < out_degree(g, v); ++i)

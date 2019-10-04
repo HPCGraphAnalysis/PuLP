@@ -1,7 +1,10 @@
 #!/bin/bash
 
 PULPVERSION=0.2
-XTRAPULPVERSION=0.2
+XTRAPULPVERSION=0.3
+
+rm lib/libpulp.a lib/libxtrapulp.a
+rm include/pulp.h include/xtrapulp.h
 
 cd pulp/$PULPVERSION/
 make clean ; make -j

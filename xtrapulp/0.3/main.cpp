@@ -124,8 +124,8 @@ int main(int argc, char **argv)
   srand(time(0));
   setbuf(stdout, 0);
 
-  verbose = true;
-  debug = true;
+  verbose = false;
+  debug = false;
   verify = false;
 
   MPI_Init(&argc, &argv);
@@ -293,12 +293,12 @@ int main(int argc, char **argv)
   {
     if (ggi->num_vert_weights > 0) {
       exchange_edges_weighted(ggi, comm);
-      //exchange_verts_weighted(ggi, comm);
       create_graph_weighted(ggi, g);
     } else {
       exchange_edges(ggi, comm);
       create_graph(ggi, g);
     }
+    set_weights_graph(g);
     relabel_edges(g);
   }
   else
@@ -308,8 +308,9 @@ int main(int argc, char **argv)
     } else {
       create_graph_serial(ggi, g);
     }
+    set_weights_graph(g);
   }
-  if (ggi->num_vert_weights > 0) {
+  if (g->num_vert_weights > 0) {
     init_pulp_data_weighted(g, pulp, num_parts);
   } else {
     init_pulp_data(g, pulp, num_parts);
@@ -342,7 +343,7 @@ int main(int argc, char **argv)
     if (procid == 0) printf("Starting Partitioning\n");
     elt = omp_get_wtime();
 
-    if (ggi->num_vert_weights > 0)
+    if (g->num_vert_weights > 0)
       xtrapulp_weighted(g, ppc, comm, pulp, q);
     else 
       xtrapulp(g, ppc, comm, pulp, q);

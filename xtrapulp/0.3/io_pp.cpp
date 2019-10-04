@@ -49,6 +49,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <math.h>
+#include <limits>
 #include <fstream>
 #include <sstream>
 
@@ -132,6 +134,8 @@ int load_graph_edges_32(char *input_filename, graph_gen_data_t *ggi,
   ggi->n_local = ggi->n / (uint64_t)nprocs + 1;
   if (procid == nprocs - 1 && !offset_vids)
     ggi->n_local = n_global - ggi->n_offset + 1; 
+  ggi->num_vert_weights = 0;
+  ggi->num_edge_weights = 0;
 
   if (offset_vids)
   {
@@ -261,6 +265,67 @@ int load_graph_edges_64(char *input_filename, graph_gen_data_t *ggi,
 }
 
 
+int scale_weights(uint64_t n, uint64_t num_weights, 
+                  float* weights_in, int32_t* weights_out)
+{
+  const double INT_EPSILON = 1e-5;
+
+  int32_t* nonint = new int[num_weights]; 
+  double* sum_weights = new double[num_weights];
+  double* max_weights = new double[num_weights];
+
+  for (uint64_t j = 0; j < num_weights; ++j) {
+    nonint[j] = 0;
+    sum_weights[j] = 0.0;
+    max_weights[j] = 0.0; 
+  }
+
+  // Compute local sums of the weights 
+  // Check whether all weights are integers
+  for (uint64_t i = 0; i < n; ++i) {
+    for (uint64_t j = 0; j < num_weights; ++j) {
+      float fw = (float)weights_in[i*num_weights + j];
+      if (!nonint[j]) {
+        int tmp = (int32_t) floor(fw + 0.5); /* Nearest int */
+        if (fabs((float)tmp - fw) > INT_EPSILON) {
+          nonint[j] = 1;
+        }
+      }
+      sum_weights[j] += fw;
+      if (fw > max_weights[j]) 
+        max_weights[j] = fw;
+    }
+  }
+
+  const double max_weight_sum = double(std::numeric_limits<int>::max()/8);
+  for (uint64_t j = 0; j < num_weights; j++) {
+    double scale = 1.0;
+
+    // Scaling needed if weights are not integers or weights' 
+    // range is not sufficient
+    if ( nonint[j] || 
+        (max_weights[j] <= INT_EPSILON) || 
+        (sum_weights[j] > max_weight_sum) ) 
+    {
+      /* Calculate scale factor */
+      if (sum_weights[j] != 0.0) 
+        scale = max_weight_sum / sum_weights[j];
+    }
+
+    /* Convert weights to positive integers using the computed scale factor */
+    for (uint64_t i = 0; i < n; i++)
+      weights_out[i*num_weights + j] = 
+        (int32_t)ceil((double)weights_in[i*num_weights + j] * scale);
+  }
+
+  delete [] nonint;
+  delete [] sum_weights;
+  delete [] max_weights;
+
+  return 0;
+}
+
+
 int read_adj(char* input_filename, 
   graph_gen_data_t *ggi, bool offset_vids)
 {
@@ -268,6 +333,8 @@ int read_adj(char* input_filename,
   std::string line;
   std::string val;
 
+  float* tmp_vert_weights = NULL;
+  float* tmp_edge_weights = NULL;
   ggi->gen_edges = (uint64_t*)malloc(ggi->m*sizeof(uint64_t));
   ggi->edge_weights_sum = 0;
   ggi->max_edge_weight = 0;
@@ -282,6 +349,8 @@ int read_adj(char* input_filename,
   else if (ggi->num_vert_weights == 0) 
   {
     // edge weights but no vertex weights
+    tmp_vert_weights = (float*)malloc(ggi->n*sizeof(float));
+    tmp_edge_weights = (float*)malloc(ggi->n*sizeof(float));
     ggi->vert_weights = (int32_t*)malloc(ggi->n*sizeof(int32_t));
     ggi->vert_weights_sums = (int64_t*)malloc(sizeof(int64_t));
     ggi->edge_weights = (int32_t*)malloc(ggi->m/2*sizeof(int32_t));
@@ -293,6 +362,10 @@ int read_adj(char* input_filename,
   else 
   { 
     // vertex weights, maybe edge weights (will get set to unit weight if no)
+    tmp_vert_weights = 
+        (float*)malloc(ggi->num_vert_weights*ggi->n*sizeof(float));
+    tmp_edge_weights = 
+        (float*)malloc(ggi->m/2*sizeof(float));
     ggi->vert_weights = 
         (int32_t*)malloc(ggi->num_vert_weights*ggi->n*sizeof(int32_t));
     ggi->vert_weights_sums = 
@@ -312,6 +385,11 @@ int read_adj(char* input_filename,
   infile.open(input_filename);
   getline(infile, line);  // skip header
 
+  if (debug) {
+    printf("%d - reading n: %lu, m: %lu, nVwgt: %lu, nEwgt: %lu\n",
+      procid, ggi->n, ggi->m, ggi->num_vert_weights, ggi->num_edge_weights);
+  }
+
   while (getline(infile, line))
   {
     uint64_t src = cur_line - 1;
@@ -321,28 +399,24 @@ int read_adj(char* input_filename,
     for (uint64_t w = 0; w < ggi->num_vert_weights; ++w) 
     {
       getline(ss, val, ' ');
-      int32_t weight = (int32_t)atoi(val.c_str());
-      ggi->vert_weights[(src * ggi->num_vert_weights) + w] = weight;
-      ggi->vert_weights_sums[w] += weight;
-      if (weight > ggi->max_vert_weights[w])
-        ggi->max_vert_weights[w] = weight;
+      double weight = (int32_t)atof(val.c_str());
+      tmp_vert_weights[(src * ggi->num_vert_weights) + w] = weight;
     }
 
     if (ggi->num_vert_weights == 0 && ggi->num_edge_weights > 0)
     {
       ggi->vert_weights[src] = 1;
-      ggi->vert_weights_sums[0] += 1;
     }
 
     while (getline(ss, val, ' '))
     {
       dst = atoi(val.c_str()) - 1;
-      int32_t weight = 1;
+      float weight = 1.0;
 
       if (ggi->num_edge_weights > 0)
       {
         getline(ss, val, ' ');
-        weight = atoi(val.c_str());
+        weight = atof(val.c_str());
       }
 
       if (src < dst) 
@@ -350,9 +424,8 @@ int read_adj(char* input_filename,
         ggi->gen_edges[2*count] = src;
         ggi->gen_edges[2*count+1] = dst;
 
-        if (ggi->num_edge_weights > 0 || ggi->num_vert_weights > 1) {
-          ggi->edge_weights[count] = weight;
-          ggi->edge_weights_sum += weight;
+        if (ggi->num_edge_weights > 0 || ggi->num_vert_weights > 0) {
+          tmp_edge_weights[count] = weight;
         }
 
         ++count;
@@ -362,14 +435,34 @@ int read_adj(char* input_filename,
   }
   assert(cur_line == ggi->n+1);
   ggi->m = count*2; // num edges after self-loop removal
+  infile.close();
+
 
   if (ggi->num_vert_weights > 0)
     ggi->num_edge_weights = 1;  // in case was set to zero, for consistency
   else if (ggi->num_edge_weights > 0)
     ggi->num_vert_weights = 1;  // same thing
 
-  infile.close();
+  if (ggi->num_vert_weights > 0) {
+    scale_weights(ggi->n, ggi->num_vert_weights, 
+                  tmp_vert_weights, ggi->vert_weights);
+    scale_weights(ggi->m/2, ggi->num_edge_weights, 
+                  tmp_edge_weights, ggi->edge_weights);
+    delete [] tmp_vert_weights;
+    delete [] tmp_edge_weights;
 
+    for (uint64_t i = 0; i < ggi->n; ++i) {
+      for (uint64_t j = 0; j < ggi->num_vert_weights; ++j) {
+        int32_t weight = ggi->vert_weights[i*ggi->num_vert_weights + j];
+        ggi->vert_weights_sums[j] += weight;
+        if (weight > ggi->max_vert_weights[j])
+          ggi->max_vert_weights[j] = weight;
+      }
+    }
+    for (uint64_t i = 0; i < ggi->m/2; ++i) {
+      ggi->edge_weights_sum +=  ggi->edge_weights[i];
+    }
+  }
 
   if (offset_vids)
   {

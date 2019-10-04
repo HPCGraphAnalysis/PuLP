@@ -63,8 +63,8 @@
 #include "pulp_mm.h"
 
 int procid, nprocs;
-int seed;
-bool verbose, debug, verify;
+int seed = 0;
+bool verbose, debug, verify = false;
 float X,Y;
 
 extern "C" int xtrapulp_run(
@@ -72,11 +72,16 @@ extern "C" int xtrapulp_run(
   int* parts, int num_parts)
 {
   mpi_data_t comm;
-  pulp_data_t pulp;
   queue_data_t q;
+  pulp_data_t pulp;
+
   init_comm_data(&comm);
-  init_pulp_data(g, &pulp, num_parts);
   init_queue_data(g, &q);
+  if (g->num_vert_weights == 0)
+    init_pulp_data(g, &pulp, num_parts);
+  else
+    init_pulp_data_weighted(g, &pulp, num_parts);
+  
   if (ppc->do_repart)
     memcpy(pulp.local_parts, parts, g->n_local*sizeof(int32_t));   
 
@@ -102,7 +107,7 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
   double do_label_prop = ppc->do_lp_init;
   double do_nonrandom_init = ppc->do_bfs_init;
   verbose = ppc->verbose_output;
-  debug = false;
+  //debug = false;  
   bool do_vert_balance = true;
   bool do_edge_balance = ppc->do_edge_balance;
   bool do_maxcut_balance = ppc->do_maxcut_balance;
@@ -115,16 +120,20 @@ extern "C" int xtrapulp(dist_graph_t* g, pulp_part_control_t* ppc,
   int num_parts = (int)pulp->num_parts;
   seed = ppc->pulp_seed;
 
-  X = 1.0;
   Y = 0.25;
+  X = 1.0;
   // Tighten up allowable exchange for small graphs, 
   //  and just use block initialization
-  if (g->n/(long unsigned)nprocs < 100) {
-    X = 2.0;
+  if ((double)g->n/(double)nprocs < 1000.0) {
+    //Y = 1.0 / exp(0.0 - log(1000.0 - (double)g->n/(double)nprocs));
+    //X = Y * 1.25;
     Y = 1.0;
+    X = 1.25;
     do_label_prop = false;
     do_nonrandom_init = false;
+    omp_set_num_threads(1);
   }
+
 
   double elt, elt2, elt3;
   elt = omp_get_wtime();
@@ -233,7 +242,7 @@ extern "C" int xtrapulp_weighted(
   double do_label_prop = ppc->do_lp_init;
   double do_nonrandom_init = ppc->do_bfs_init;
   verbose = ppc->verbose_output;
-  debug = false;
+  //debug = false;
   bool do_repart = ppc->do_repart;
   int label_prop_iter = 3;
   int outer_iter = 3*g->num_vert_weights;
@@ -242,15 +251,20 @@ extern "C" int xtrapulp_weighted(
   int num_parts = (int)pulp->num_parts;
   seed = ppc->pulp_seed;
 
+  //Y = 0.25;
+  //X = 1.0;
   X = 1.25;
   Y = 1.0;
   // Tighten up allowable exchange for small graphs, 
-  //  and just use block initialization
-  if (g->n/(long unsigned)nprocs < 5000) {
-    X = 2.0;
-    Y = 1.25;
+  //  just use block initialization, and limit threading
+  if ((double)g->n/(double)nprocs < 1000.0) {
+    //Y = 1.0 / exp(0.0 - log10(1000.0 - (double)g->n/(double)nprocs));
+    //X = Y * 1.25;
+    Y = 1.0;
+    X = 1.25;
     do_label_prop = false;
     do_nonrandom_init = false;
+    omp_set_num_threads(1);
   }
 
   double elt, elt2;
@@ -294,7 +308,7 @@ extern "C" int xtrapulp_weighted(
 
   elt2 = omp_get_wtime(); 
   if (procid == 0 && verbose) 
-    printf("\t\tDoing (weighted) vert balance and refinement stage\n");
+    printf("\t\tDoing (weighted) balance and refinement stage\n");
 
   pulp_w(g, comm, q, pulp, 
     outer_iter, balance_iter, refine_iter, 

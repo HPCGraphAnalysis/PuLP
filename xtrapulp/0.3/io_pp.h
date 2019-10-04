@@ -57,6 +57,9 @@ int load_graph_edges_32(char *input_filename, graph_gen_data_t *ggi,
 int load_graph_edges_64(char *input_filename, graph_gen_data_t *ggi, 
                         bool offset_vids);
 
+int scale_weights(uint64_t n, uint64_t num_weights, 
+                  float* weights_in, int32_t* weights_out);
+
 int read_adj(char* input_filename, 
   graph_gen_data_t *ggi, bool offset_vids);
 

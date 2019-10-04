@@ -1,6 +1,6 @@
-Last Modified: 9 August 2016
+Last Modified: 04 October 2019
 PuLP version: 0.2
-XtraPuLP version: 0.2
+XtraPuLP version: 0.3
 
 To install, type:
 

@@ -28,6 +28,9 @@ Questions?  Contact George M. Slota    (gmslota@sandia.gov)
 ********************************************************************************
 Version info:
 
+v0.3 -- 23 September 2019
+--Now allows an arbitrary number of vertex weights
+
 v0.21 -- 23 April 2017
 --Bug fixes
     *pulp->avg_size wasn't being set correctly in weighted case

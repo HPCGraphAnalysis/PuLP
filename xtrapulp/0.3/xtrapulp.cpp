@@ -60,7 +60,9 @@
 #include "dist_graph.h"
 #include "pulp_init.h"
 #include "pulp_w.h"
-#include "pulp_mm.h"
+#include "pulp_v.h"
+#include "pulp_ve.h"
+#include "pulp_vec.h"
 
 int procid, nprocs;
 int seed = 0;

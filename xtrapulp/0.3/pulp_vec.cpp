@@ -54,7 +54,7 @@
 #include "comms.h"
 #include "pulp_data.h"
 #include "pulp_util.h"
-#include "pulp_mm.h"
+#include "pulp_vec.h"
 
 
 extern int procid, nprocs;

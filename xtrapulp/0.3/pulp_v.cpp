@@ -55,7 +55,7 @@
 #include "comms.h"
 #include "pulp_data.h"
 #include "pulp_util.h"
-#include "pulp_mm.h"
+#include "pulp_v.h"
 
 extern int procid, nprocs;
 extern int seed;

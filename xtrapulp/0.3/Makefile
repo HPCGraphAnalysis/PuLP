@@ -1,8 +1,6 @@
 MPICXX = mpicxx
-CXXFLAGS = -fopenmp -O0 -g -std=c++11 -Wall
-#CXXFLAGS = -fopenmp -Ofast -Wall
-LINKFLAGS = -fopenmp -O0 -g -std=c++11 -Wall
-#LINKFLAGS = -fopenmp -Ofast -Wall
+CXXFLAGS = -fopenmp -std=c++11 -Ofast -Wall
+LINKFLAGS = -fopenmp -std=c++11 -Ofast -Wall
 TARGET = xtrapulp
 LIBTARGET = libxtrapulp.a
 TOCOMPILE = util.o generate.o pulp_util.o pulp_data.o fast_map.o dist_graph.o comms.o io_pp.o main.o

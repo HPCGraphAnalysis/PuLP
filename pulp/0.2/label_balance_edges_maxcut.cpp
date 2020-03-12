@@ -379,7 +379,7 @@ while(t < edge_outer_iter)
     num_swapped_1 = 0;
 
 #if OUTPUT_STEP
-  evaluate_quality_step(g, "EdgeCutBalance", parts, num_parts);
+  evaluate_quality(g, num_parts, parts);
 #endif
 }
   } // end while
@@ -560,7 +560,7 @@ while(t < edge_outer_iter)
     }
 
 #if OUTPUT_STEP
-  evaluate_quality_step(g, "EdgeCutRefine", parts, num_parts);
+  evaluate_quality(g, num_parts, parts);
 #endif
 }
   }
@@ -967,7 +967,7 @@ while(t < edge_outer_iter)
     num_swapped_1 = 0;
 
 #if OUTPUT_STEP
-  evaluate_quality_step(g, "EdgeCutBalance", parts, num_parts);
+  evaluate_quality(g, num_parts, parts);
 #endif
 }
   } // end while
@@ -1156,7 +1156,7 @@ while(t < edge_outer_iter)
     }
 
 #if OUTPUT_STEP
-  evaluate_quality_step(g, "EdgeCutRefine", parts, num_parts);
+  evaluate_quality(g, num_parts, parts);
 #endif
 }
   }

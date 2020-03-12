@@ -245,7 +245,7 @@ while(t < vert_outer_iter)
     num_swapped_1 = 0;
 
 #if OUTPUT_STEP
-  evaluate_quality_step(g, "VertBalance", parts, num_parts);
+  evaluate_quality(g, num_parts, parts);
 #endif
 }
   } // end while
@@ -376,7 +376,7 @@ while(t < vert_outer_iter)
         max_v = (double)part_sizes[p] / avg_size;
     }
 #if OUTPUT_STEP
-  evaluate_quality_step(g, "VertRefine", parts, num_parts);
+  evaluate_quality(g, num_parts, parts);
 #endif
 }
   } // end while
@@ -630,7 +630,7 @@ while(t < vert_outer_iter)
     num_swapped_1 = 0;
 
 #if OUTPUT_STEP
-  evaluate_quality_step(g, "VertBalance", parts, num_parts);
+  evaluate_quality(g, num_parts, parts);
 #endif
 }
   } // end while
@@ -767,7 +767,7 @@ while(t < vert_outer_iter)
         max_v = (double)part_sizes[p] / avg_size;
     }
 #if OUTPUT_STEP
-  evaluate_quality_step(g, "VertRefine", parts, num_parts);
+  evaluate_quality(g, num_parts, parts);
 #endif
 }
   } // end while

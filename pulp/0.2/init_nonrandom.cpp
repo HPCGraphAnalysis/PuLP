@@ -139,7 +139,7 @@ int* init_nonrandom(pulp_graph_t& g, int num_parts, int* parts)
 } // end parallel
   
 #if OUTPUT_STEP
-  evaluate_quality_step(g, "InitNonrandom", parts, num_parts);
+  evaluate_quality(g, num_parts, parts);
 #endif
 
   delete [] queue;
@@ -254,7 +254,7 @@ int* init_nonrandom_constrained(pulp_graph_t& g, int num_parts, int* parts)
 } // end parallel
   
 #if OUTPUT_STEP
-  evaluate_quality_step(g, "InitNonrandom2", parts, num_parts);
+  evaluate_quality(g, num_parts, parts);
 #endif
 
   delete [] queue;

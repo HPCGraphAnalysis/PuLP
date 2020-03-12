@@ -158,7 +158,8 @@ int* label_prop(pulp_graph_t& g, int num_parts, int* parts,
       if (num_max > 1)
         max_part = part_counts[(int)rand() % num_max];
 
-      if (max_part != part)
+      if (max_part != part && 
+          (part_sizes[part]-1) > (int)min_size)
       {
     #pragma omp atomic
         ++part_sizes[max_part];
@@ -233,7 +234,7 @@ int* label_prop(pulp_graph_t& g, int num_parts, int* parts,
     next_size = 0;
 
 #if OUTPUT_STEP
-  evaluate_quality_step(g, "LabelProp", parts, num_parts);
+  evaluate_quality(g, num_parts, parts);
 #endif
 } // end single
   } // end while
@@ -360,7 +361,8 @@ int* label_prop_weighted(pulp_graph_t& g, int num_parts, int* parts,
       if (num_max > 1)
         max_part = part_counts[(int)xs1024star_next(&xs) % num_max];
 
-      if (max_part != part && (part_sizes[part] - v_weight > (int)min_size))
+      if (max_part != part && 
+          (part_sizes[part] - v_weight > (int)min_size))
       {
     #pragma omp atomic
         part_sizes[max_part] += v_weight;
@@ -435,7 +437,7 @@ int* label_prop_weighted(pulp_graph_t& g, int num_parts, int* parts,
     next_size = 0;
 
 #if OUTPUT_STEP
-  evaluate_quality_step(g, "LabelProp", parts, num_parts);
+  evaluate_quality(g, num_parts, parts);
 #endif
 } // end single
   } // end while

@@ -47,6 +47,7 @@
 #include <omp.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "pulp_data.h"
 #include "util.h"

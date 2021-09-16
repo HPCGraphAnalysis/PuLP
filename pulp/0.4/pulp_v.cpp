@@ -125,7 +125,7 @@ int part_balance(graph* g, int num_parts, int* parts, double imb_limit)
         part_sizes[part] -= v_weight;
         
         part_weights[part] = (double)max_size / (double)part_sizes[part] - 1.0;
-        part_weights[max_part] = (double)max_size / (double)part_sizes[max_part]  - 1.0;   
+        part_weights[max_part] = (double)max_size / (double)part_sizes[max_part]  - 1.0;
         
         if (part_weights[part] < 0.0)
           part_weights[part] = 0.0;

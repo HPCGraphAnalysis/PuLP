@@ -4,10 +4,10 @@
 //typedef int32_t pulp_part_t;
 //typedef int32_t pulp_vert_t;
 
-typedef struct {
-  int u;
-  int v;
-} pair;
+// typedef struct {
+//   int u;
+//   int v;
+// } pair;
 
 typedef struct {
   int num_verts;
@@ -21,7 +21,7 @@ typedef struct {
   int vert_weights_sum;
   int edge_weights_sum;
   
-  pair* contracted_verts;
+  int* contracted_verts;
 } graph;
 
 inline int out_degree(graph* g, int v) 

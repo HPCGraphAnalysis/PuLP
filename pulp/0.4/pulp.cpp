@@ -18,7 +18,7 @@ int pulp_run_coarsen(graph* g, int num_parts, int*& parts, double imb)
   do {
     int* contracted_edges = NULL;
     int num_contract_edges = 0;    
-    get_contracted_edges(g_new, contracted_edges, num_contract_edges);
+    get_contracted_edges_hec(g_new, contracted_edges, num_contract_edges);
     
     int num_verts_new = 0;
     int num_edges_new = 0;
@@ -26,15 +26,12 @@ int pulp_run_coarsen(graph* g, int num_parts, int*& parts, double imb)
     int* dsts_new = NULL;
     int* vert_weights_new = NULL;
     int* sd_weights_new = NULL;
-    pair* contracted_verts = NULL;
     get_coarse_edges(g_new, contracted_edges, num_contract_edges,
       num_verts_new, num_edges_new,
-      srcs_new, dsts_new, vert_weights_new, sd_weights_new,
-      contracted_verts);
+      srcs_new, dsts_new, vert_weights_new, sd_weights_new);
     
     g_new = create_coarse_graph(num_verts_new, num_edges_new,
-      srcs_new, dsts_new, vert_weights_new, sd_weights_new,
-      contracted_verts);
+      srcs_new, dsts_new, vert_weights_new, sd_weights_new);
     graphs[levels++] = g_new;
     
   } while (levels <= MAX_COARSENING_LEVELS &&
@@ -329,90 +326,90 @@ void evaluate_quality_step(char* step_name,
   delete [] edge_cuts_sizes;
 }
 
-void compare_cut(graph* g, graph* g2, 
-  int num_parts, int* parts, int* parts2)
-{
-  int num_verts = g->num_verts;
-  int num_verts2 = g2->num_verts;
-  int* part_sizes = new int[num_parts];
-  int* part_sizes2 = new int[num_parts];
-  int* edge_cuts_sizes = new int[num_parts];
-  int* edge_cuts_sizes2 = new int[num_parts];
+// void compare_cut(graph* g, graph* g2, 
+//   int num_parts, int* parts, int* parts2)
+// {
+//   int num_verts = g->num_verts;
+//   int num_verts2 = g2->num_verts;
+//   int* part_sizes = new int[num_parts];
+//   int* part_sizes2 = new int[num_parts];
+//   int* edge_cuts_sizes = new int[num_parts];
+//   int* edge_cuts_sizes2 = new int[num_parts];
 
-  for (int i = 0; i < num_parts; ++i) {
-    part_sizes[i] = 0;
-    part_sizes2[i] = 0;
-    edge_cuts_sizes[i] = 0;
-    edge_cuts_sizes2[i] = 0;
-  }
+//   for (int i = 0; i < num_parts; ++i) {
+//     part_sizes[i] = 0;
+//     part_sizes2[i] = 0;
+//     edge_cuts_sizes[i] = 0;
+//     edge_cuts_sizes2[i] = 0;
+//   }
 
-  for (int v = 0; v < num_verts; ++v)
-    part_sizes[parts[v]] += g->vert_weights[v];
-  for (int v = 0; v < num_verts2; ++v)
-    part_sizes2[parts2[v]] += g2->vert_weights[v];
+//   for (int v = 0; v < num_verts; ++v)
+//     part_sizes[parts[v]] += g->vert_weights[v];
+//   for (int v = 0; v < num_verts2; ++v)
+//     part_sizes2[parts2[v]] += g2->vert_weights[v];
   
-  for (int v = 0; v < num_verts; ++v) {
-    int part = parts[v];
-    printf("Coarse vertex %d in %d\n", v, part);
+//   for (int v = 0; v < num_verts; ++v) {
+//     int part = parts[v];
+//     printf("Coarse vertex %d in %d\n", v, part);
     
-    int sum_cut = 0;
-    int degree = out_degree(g, v);
-    int* outs = out_vertices(g, v);
-    int* weights = out_weights(g, v);
-    for (int j = 0; j < degree; ++j) {
-      int out = outs[j];
+//     int sum_cut = 0;
+//     int degree = out_degree(g, v);
+//     int* outs = out_vertices(g, v);
+//     int* weights = out_weights(g, v);
+//     for (int j = 0; j < degree; ++j) {
+//       int out = outs[j];
 
-      int out_part = parts[out];
-      if (out_part != part) {
-        printf("cut to %d (%d %d) with %d\n", 
-          out, g->contracted_verts[out].u, g->contracted_verts[out].v, 
-          weights[j]);
-        edge_cuts_sizes[part] += weights[j];
-        sum_cut += weights[j];
-      } else {
-        printf("no cut to %d (%d %d)\n", 
-          out, g->contracted_verts[out].u, g->contracted_verts[out].v);
-      }        
-    }
+//       int out_part = parts[out];
+//       if (out_part != part) {
+//         printf("cut to %d (%d %d) with %d\n", 
+//           out, g->contracted_verts[out].u, g->contracted_verts[out].v, 
+//           weights[j]);
+//         edge_cuts_sizes[part] += weights[j];
+//         sum_cut += weights[j];
+//       } else {
+//         printf("no cut to %d (%d %d)\n", 
+//           out, g->contracted_verts[out].u, g->contracted_verts[out].v);
+//       }        
+//     }
     
-    int x = g->contracted_verts[v].u;
-    int y = g->contracted_verts[v].v;
-    int part_x = parts2[x];
-    int part_y = parts2[y];
-    printf("Expands to %d %d in %d %d\n", x, y, part_x, part_y);
+//     int x = g->contracted_verts[v].u;
+//     int y = g->contracted_verts[v].v;
+//     int part_x = parts2[x];
+//     int part_y = parts2[y];
+//     printf("Expands to %d %d in %d %d\n", x, y, part_x, part_y);
     
-    int sum_cut2 = 0;
-    degree = out_degree(g2, x);
-    outs = out_vertices(g2, x);
-    weights = out_weights(g2, x);
-    for (int j = 0; j < degree; ++j) {
-      int out = outs[j];
+//     int sum_cut2 = 0;
+//     degree = out_degree(g2, x);
+//     outs = out_vertices(g2, x);
+//     weights = out_weights(g2, x);
+//     for (int j = 0; j < degree; ++j) {
+//       int out = outs[j];
 
-      int out_part = parts2[out];
-      if (out_part != part) {
-        printf("%d cut to %d with %d\n", x, out, weights[j]);
-        edge_cuts_sizes[part] += weights[j];
-        sum_cut2 += weights[j];
-      } else {
-        printf("%d no cut to %d\n", x, out);
-      }        
-    }
-    degree = out_degree(g2, y);
-    outs = out_vertices(g2, y);
-    weights = out_weights(g2, y);
-    for (int j = 0; j < degree; ++j) {
-      int out = outs[j];
+//       int out_part = parts2[out];
+//       if (out_part != part) {
+//         printf("%d cut to %d with %d\n", x, out, weights[j]);
+//         edge_cuts_sizes[part] += weights[j];
+//         sum_cut2 += weights[j];
+//       } else {
+//         printf("%d no cut to %d\n", x, out);
+//       }        
+//     }
+//     degree = out_degree(g2, y);
+//     outs = out_vertices(g2, y);
+//     weights = out_weights(g2, y);
+//     for (int j = 0; j < degree; ++j) {
+//       int out = outs[j];
 
-      int out_part = parts2[out];
-      if (out_part != part) {
-        printf("%d cut to %d with %d\n", y, out, weights[j]);
-        edge_cuts_sizes[part] += weights[j];
-        sum_cut2 += weights[j];
-      } else {
-        printf("%d no cut to %d\n", y, out);
-      }
-    }
-    printf("sum cuts %d %d\n", sum_cut, sum_cut2);
-  }
-}
+//       int out_part = parts2[out];
+//       if (out_part != part) {
+//         printf("%d cut to %d with %d\n", y, out, weights[j]);
+//         edge_cuts_sizes[part] += weights[j];
+//         sum_cut2 += weights[j];
+//       } else {
+//         printf("%d no cut to %d\n", y, out);
+//       }
+//     }
+//     printf("sum cuts %d %d\n", sum_cut, sum_cut2);
+//   }
+// }
 

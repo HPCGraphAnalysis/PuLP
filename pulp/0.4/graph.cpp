@@ -85,13 +85,11 @@ graph* create_graph(char* filename)
   int* out_offsets = NULL;
   int* edge_weights = NULL;
   int* vert_weights = NULL;
-  pair* contracted_verts = NULL;
 
   read_bin(filename, num_verts, num_edges, srcs, dsts);
   
   edge_weights = new int[num_edges];
   vert_weights = new int[num_verts];
-  contracted_verts = new pair[num_verts];
   sd_weights = new int[num_edges];
   
 #pragma omp parallel for
@@ -100,11 +98,6 @@ graph* create_graph(char* filename)
 #pragma omp parallel for
   for (int i = 0; i < num_verts; ++i)
     vert_weights[i] = 1;
-#pragma omp parallel for
-  for (int i = 0; i < num_verts; ++i) {
-    contracted_verts[i].u = i;
-    contracted_verts[i].v = i;
-  }
   
   create_csr_weighted(num_verts, num_edges, srcs, dsts, sd_weights,
     out_adjlist, out_offsets, edge_weights);
@@ -121,7 +114,7 @@ graph* create_graph(char* filename)
   g->edge_weights = edge_weights;
   g->vert_weights_sum = g->num_verts;
   g->edge_weights_sum = g->num_edges;
-  g->contracted_verts = contracted_verts;
+  g->contracted_verts = NULL;
   
   printf("Done create_graph(): %lf (s)\n", omp_get_wtime() - elt);  
   
@@ -154,6 +147,7 @@ int copy_graph(graph* g, graph* new_g)
   new_g->edge_weights = new int[g->num_edges];
   new_g->vert_weights_sum = g->vert_weights_sum;
   new_g->edge_weights_sum = g->edge_weights_sum;
+  new_g->contracted_verts = new int[g->num_verts];
 
 #pragma omp parallel for
   for (int i = 0; i < g->num_verts+1; ++i)
@@ -167,6 +161,9 @@ int copy_graph(graph* g, graph* new_g)
 #pragma omp parallel for
   for (long i = 0; i < g->num_edges; ++i)
     new_g->edge_weights[i] = g->edge_weights[i];
+#pragma omp parallel for
+  for (int i = 0; i < g->num_verts; ++i)
+    new_g->contracted_verts[i] = g->contracted_verts[i];
   
   
   return 0;

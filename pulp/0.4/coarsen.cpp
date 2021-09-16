@@ -6,10 +6,11 @@
 
 #include "coarsen.h"
 #include "pulp.h"
+#include "thread.h"
 #include "graph.h"
 #include "fast_ts_map.h"
 
-int get_contracted_edges(graph* g, 
+int get_contracted_edges_greedy(graph* g, 
   int*& contracted_edges, int& num_contracted_edges)
 {
   double elt = omp_get_wtime();
@@ -49,74 +50,185 @@ int get_contracted_edges(graph* g,
   return 0;
 }
 
+int get_contracted_edges_hem(graph* g, 
+  int*& contracted_edges, int& num_contracted_edges)
+{
+  double elt = omp_get_wtime();
+  printf("Begin get_contracted_edges()\n");
+  
+  contracted_edges = new int[g->num_verts*2];
+  num_contracted_edges = 0;
+  
+  bool* contracted = new bool[g->num_verts];
+  for (int i = 0; i < g->num_verts; ++i)
+    contracted[i] = false;
+  
+  for (int v = 0; v < g->num_verts; ++v) {
+    if (contracted[v]) continue;
+    
+    int max_weight = 0;
+    int max_weight_vert = -1;
+    int degree = out_degree(g, v);
+    int* outs = out_vertices(g, v);
+    int* weights = out_weights(g, v);
+    for (int j = 0; j < degree; ++j) {
+      int out = outs[j];
+      if (contracted[out]) {
+        continue;
+      } else {
+        if (weights[j] > max_weight) {
+          max_weight = weights[j];
+          max_weight_vert = out;
+        }
+      }
+    }
+    if (max_weight_vert != -1) {
+      contracted_edges[num_contracted_edges++] = v;
+      contracted_edges[num_contracted_edges++] = max_weight_vert;
+      contracted[v] = true;
+      contracted[max_weight_vert] = true;
+    }
+  }
+  
+  delete [] contracted;
+  
+  printf("Found %d edges to contract\n", num_contracted_edges / 2);
+  printf("Done get_contracted_edges(): %lf (s)\n", omp_get_wtime() - elt); 
+  
+  return 0;
+}
+
+int get_contracted_edges_hec(graph* g, 
+  int*& contracted_edges, int& num_contracted_edges)
+{
+  double elt = omp_get_wtime();
+  printf("Begin get_contracted_edges()\n");
+  
+  contracted_edges = new int[g->num_verts*2];
+  num_contracted_edges = 0;
+  
+  for (int v = 0; v < g->num_verts; ++v) {    
+    int max_weight = 0;
+    int max_weight_vert = -1;
+    int degree = out_degree(g, v);
+    int* outs = out_vertices(g, v);
+    int* weights = out_weights(g, v);
+    for (int j = 0; j < degree; ++j) {
+      int out = outs[j];
+      if (weights[j] >= max_weight) {
+        max_weight = weights[j];
+        max_weight_vert = out;
+      }
+    }
+    if (max_weight_vert != -1) {
+      contracted_edges[num_contracted_edges++] = v;
+      contracted_edges[num_contracted_edges++] = max_weight_vert;
+    }
+  }
+  
+  printf("Found %d edges to contract\n", num_contracted_edges / 2);
+  printf("Done get_contracted_edges(): %lf (s)\n", omp_get_wtime() - elt); 
+  
+  return 0;
+}
+
+
 int get_coarse_edges(graph* g,
   int* contracted_edges, int num_contracted_edges,
   int& num_verts_new, int& num_edges_new,
-  int*& srcs_new, int*& dsts_new, int*& vert_weights_new, int*& sd_weights_new,
-  pair*& contracted_verts)
+  int*& srcs_new, int*& dsts_new, int*& vert_weights_new, int*& sd_weights_new)
 {
   double elt = omp_get_wtime();
   printf("Begin get_coarse_edges()\n");
   
   int* vid_map = new int[g->num_verts];
+#pragma omp parallel for
   for (int i = 0; i < g->num_verts; ++i)
     vid_map[i] = -1;
   
+  double elt2 = omp_get_wtime();
+  
   num_verts_new = 0;
+#pragma omp parallel for
   for (int i = 0; i < num_contracted_edges; i += 2) {
     int u = contracted_edges[i];
     int v = contracted_edges[i+1];
-    assert(vid_map[u] == -1);
-    assert(vid_map[v] == -1);
-    vid_map[u] = num_verts_new;
-    vid_map[v] = num_verts_new++;
+    if (vid_map[u] == -1 && vid_map[v] != -1)
+      vid_map[u] = vid_map[v];
+    else if (vid_map[v] == -1 && vid_map[u] != -1)
+      vid_map[v] = vid_map[u];
+    else {
+      int new_vid = 0;
+  #pragma omp atomic capture
+      { new_vid = num_verts_new ; num_verts_new++; }
+      
+      vid_map[u] = new_vid;
+      vid_map[v] = new_vid;
+    }
   } 
-  assert(num_contracted_edges / 2 == num_verts_new);
+  //assert(num_contracted_edges / 2 == num_verts_new);  
+  printf("Time loop 1: %lf\n", omp_get_wtime() - elt2);
+  elt2 = omp_get_wtime();
+
+#pragma omp parallel for
   for (int i = 0; i < g->num_verts; ++i) {
     if (vid_map[i] == -1) {
-      vid_map[i] = num_verts_new++;
+      int new_vid = 0;
+  #pragma omp atomic capture
+      { new_vid = num_verts_new ; num_verts_new++; }
+      
+      vid_map[i] = new_vid;
     }
   }
+  printf("Time loop 2: %lf\n", omp_get_wtime() - elt2);
+  elt2 = omp_get_wtime();
   
-  contracted_verts = new pair[num_verts_new];
-  for (int i = 0; i < num_verts_new; ++i) {
-    contracted_verts[i].u = -1;
-    contracted_verts[i].v = -1;
+  g->contracted_verts = new int[g->num_verts];
+#pragma omp parallel for
+  for (int i = 0; i < g->num_verts; ++i) {
+    g->contracted_verts[i] = -1;
   }  
+#pragma omp parallel for
   for (int i = 0; i < num_contracted_edges; i += 2) {
     int u = contracted_edges[i];
     int v = contracted_edges[i+1];
     int index1 = vid_map[u];
     int index2 = vid_map[v];
-    assert(index1 == index2);
-    assert(contracted_verts[index1].u == -1);
-    assert(contracted_verts[index1].v == -1);
-    contracted_verts[index1].u = u;
-    contracted_verts[index1].v = v;
+    //assert(index1 == index2);
+    //assert(contracted_verts[index1].u == -1);
+    //assert(contracted_verts[index1].v == -1);
+    g->contracted_verts[u] = index1;
+    g->contracted_verts[v] = index2;
   }
+#pragma omp parallel for
   for (int i = 0; i < g->num_verts; ++i) {
     int index = vid_map[i];
-    if (contracted_verts[index].u == -1) {
-      assert(contracted_verts[index].v == -1);
-      contracted_verts[index].u = i;
-      contracted_verts[index].v = i;
+    if (g->contracted_verts[i] == -1) {
+      //assert(contracted_verts[index].v == -1);
+      g->contracted_verts[i] = index;
     }
   }  
-  for (int i = 0; i < g->num_verts; ++i) { 
-    int index = vid_map[i];
-    assert(contracted_verts[index].u != -1);
-    assert(contracted_verts[index].v != -1);
-  }
+  printf("Time loop 3: %lf\n", omp_get_wtime() - elt2);
+  elt2 = omp_get_wtime();
+  // for (int i = 0; i < g->num_verts; ++i) { 
+  //   int index = vid_map[i];
+  //   assert(contracted_verts[index].u != -1);
+  //   assert(contracted_verts[index].v != -1);
+  // }
   
   fast_ts_map* map = new fast_ts_map;
   init_map(map, g->num_edges*4);
   
   vert_weights_new = new int[num_verts_new];
+#pragma omp parallel for
   for (int i = 0; i < num_verts_new; ++i)
     vert_weights_new[i] = 0;
   
+#pragma omp parallel for schedule(guided)
   for (int v = 0; v < g->num_verts; ++v) {
     int x = vid_map[v];
+
+#pragma omp atomic
     vert_weights_new[x] += g->vert_weights[v];
     
     int degree = out_degree(g, v);
@@ -130,6 +242,8 @@ int get_coarse_edges(graph* g,
       else if (x > y) test_set_value(map, (uint32_t)y, (uint32_t)x, w_xy);
     }
   }
+  printf("Time loop 4: %lf\n", omp_get_wtime() - elt2);
+  elt2 = omp_get_wtime();
   
   
   // vert_weights_new = new int[num_verts_new];
@@ -182,6 +296,8 @@ int get_coarse_edges(graph* g,
   //   }
   // }
   num_edges_new = 0;
+
+#pragma omp parallel for reduction(+:num_edges_new)
   for (int i = 0; i < (int)map->capacity; ++i) {
     if (map->arr[i].val == true) {
       ++num_edges_new;
@@ -192,17 +308,31 @@ int get_coarse_edges(graph* g,
   dsts_new = new int[num_edges_new];
   sd_weights_new = new int[num_edges_new];
   num_edges_new = 0;
+#pragma omp parallel 
+{
+  int thread_queue[THREAD_QUEUE_SIZE];
+  int thread_queue_size = 0;
+  
+#pragma omp for
   for (int i = 0; i < (int)map->capacity; ++i) {
     if (map->arr[i].val == true) {
       uint64_t key = map->arr[i].key;
       int src = (int)((uint32_t)(key >> 32));
       int dst = (int)((uint32_t)(key & 0x00000000FFFFFFFF));
-      srcs_new[num_edges_new] = src;
-      dsts_new[num_edges_new] = dst;
-      sd_weights_new[num_edges_new++] = map->arr[i].count / 2;
+      
+      add_to_queues(thread_queue, thread_queue_size, 
+                   srcs_new, dsts_new, sd_weights_new, 
+                   num_edges_new, 
+                   src, dst, map->arr[i].count / 2);
     }
   }
+  empty_queues(thread_queue, thread_queue_size, 
+               srcs_new, dsts_new, sd_weights_new, 
+               num_edges_new);
+} // end parallel
   num_edges_new *= 2; // expected for csr creation
+  printf("Time loop 5: %lf\n", omp_get_wtime() - elt2);
+  elt2 = omp_get_wtime();
   
   delete map;
   
@@ -215,8 +345,7 @@ int get_coarse_edges(graph* g,
 
 
 graph* create_coarse_graph(int num_verts_new, int num_edges_new,
-  int*& srcs_new, int*& dsts_new, int* vert_weights_new, int* sd_weights_new,
-  pair* contracted_verts)
+  int*& srcs_new, int*& dsts_new, int* vert_weights_new, int* sd_weights_new)
 {
   double elt = omp_get_wtime();
   printf("Begin create_coarse_graph()\n");
@@ -241,7 +370,7 @@ graph* create_coarse_graph(int num_verts_new, int num_edges_new,
   g_new->edge_weights = edge_weights_new;
   g_new->vert_weights_sum = 0;
   g_new->edge_weights_sum = 0;
-  g_new->contracted_verts = contracted_verts;
+  g_new->contracted_verts = NULL;
 
   for (int i = 0; i < g_new->num_verts; ++i)
     g_new->vert_weights_sum += g_new->vert_weights[i];
@@ -264,13 +393,15 @@ int extrapolate_parts(graph* g_coarse, graph* g,
     parts[i] = -1;
   
 #pragma omp parallel for
-  for (int i = 0; i < g_coarse->num_verts; ++i) {
-    int u = g_coarse->contracted_verts[i].u;
-    int v = g_coarse->contracted_verts[i].v;
-    assert(u < g->num_verts);
-    assert(v < g->num_verts);
-    parts[u] = parts_coarse[i];
-    parts[v] = parts_coarse[i];
+  for (int i = 0; i < g->num_verts; ++i) {
+    parts[i] = parts_coarse[g->contracted_verts[i]];
+    
+    // int u = g_coarse->contracted_verts[i].u;
+    // int v = g_coarse->contracted_verts[i].v;
+    // assert(u < g->num_verts);
+    // assert(v < g->num_verts);
+    // parts[u] = parts_coarse[i];
+    // parts[v] = parts_coarse[i];
   }
   
   for (int i = 0; i < g->num_verts; ++i)

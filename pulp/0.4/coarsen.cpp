@@ -8,6 +8,7 @@
 #include "pulp.h"
 #include "thread.h"
 #include "graph.h"
+#include "coarse_graph.h"
 #include "fast_ts_map.h"
 
 int get_contracted_edges_greedy(graph* g, 

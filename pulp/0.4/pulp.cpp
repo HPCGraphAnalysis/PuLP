@@ -5,6 +5,7 @@
 #include "pulp.h"
 #include "graph.h"
 #include "init.h"
+#include "init_eigen.h"
 #include "pulp_v.h"
 #include "coarsen.h"
 
@@ -35,8 +36,8 @@ int pulp_run_coarsen(graph* g, int num_parts, int*& parts, double imb)
     graphs[levels++] = g_new;
     
   } while (levels <= MAX_COARSENING_LEVELS &&
-            g_new->num_verts > COARSE_VERTS_CUTOFF &&
-            g_new->num_verts*2 < g_new->num_edges);
+            g_new->num_verts > COARSE_VERTS_CUTOFF);// &&
+            //g_new->num_verts*2 < g_new->num_edges);
   
   --levels;
   int max_level = levels;
@@ -44,10 +45,15 @@ int pulp_run_coarsen(graph* g, int num_parts, int*& parts, double imb)
   graph* g_next = NULL;
   int* parts_current = new int[g_current->num_verts];
   int* parts_next = NULL;
-  init_bfs(g_current, num_parts, parts_current);
+  //init_bfs(g_current, num_parts, parts_current);
+  init_eigen(g_current, num_parts, parts_current);
+    evaluate_quality(g_current, num_parts, parts_current);
   while (levels > 0) {
+
+    //for (int i = 0; i < 3; ++i) {
     part_balance(g_current, num_parts, parts_current, imb);
     part_refine(g_current, num_parts, parts_current, imb);
+    //}
     
     g_next = graphs[levels-1];
     parts_next = new int[g_next->num_verts];
@@ -63,8 +69,10 @@ int pulp_run_coarsen(graph* g, int num_parts, int*& parts, double imb)
   }
 
   parts = parts_next;
+ //   for (int i = 0; i < 3; ++i) {
   part_balance(g, num_parts, parts, imb);
   part_refine(g, num_parts, parts, imb);
+//}
   
   return 0;
 }

@@ -10,6 +10,8 @@ int binary_search(double* array, double value, int max_index);
 
 void quicksort(int* arr1, int left, int right);
 
+void quicksort(double* arr1, int left, int right);
+
 void quicksort(int* arr1, int* arr2, int left, int right);
 
 #endif

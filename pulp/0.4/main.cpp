@@ -52,9 +52,9 @@ int main(int argc, char** argv)
   int num_parts = atoi(argv[2]);
   int* parts = NULL;
   
-  double imb = 1.05;
+  double imb = 1.1;
   char parts_out[1024]; parts_out[0] = '\0';
-  seed = rand();
+  seed = rand();  
 
   char c;
   while ((c = getopt (argc, argv, "b:o:s:")) != -1)

@@ -1,8 +1,8 @@
 CXX = g++
-CXXFLAGS = -fopenmp -O0 -g -Wall -std=c++11
-LINKFLAGS = -fopenmp -O0 -g  -Wall -std=c++11
+CXXFLAGS = -I /usr/include/eigen3/ -fopenmp -O0 -g -Wall -std=c++11
+LINKFLAGS = -fopenmp -O0- -g  -Wall -std=c++11
 TARGET = pulp
-TOCOMPILE = util.o rand.o fast_ts_map.o graph.o io.o coarsen.o pulp_v.o init.o pulp.o main.o
+TOCOMPILE = util.o rand.o fast_ts_map.o graph.o io.o coarsen.o pulp_v.o init.o init_eigen.o pulp.o main.o
 
 
 all: $(TOCOMPILE)

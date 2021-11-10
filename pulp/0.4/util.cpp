@@ -99,6 +99,35 @@ void quicksort(int* arr1, int left, int right)
     quicksort(arr1, i, right);
 }
 
+void quicksort(double* arr1, int left, int right) 
+{
+  int i = left;
+  int j = right;
+  double temp;
+  double pivot = arr1[(left + right) / 2];
+
+  while (i <= j) 
+  {
+    while (arr1[i] < pivot) {i++;}
+    while (arr1[j] > pivot) {j--;}
+  
+    if (i <= j) 
+    {
+      temp = arr1[i];
+      arr1[i] = arr1[j];
+      arr1[j] = temp;
+      ++i;
+      --j;
+    }
+  }
+
+  if (j > left)
+    quicksort(arr1, left, j);
+  if (i < right)
+    quicksort(arr1, i, right);
+}
+
+
 void quicksort(int* arr1, int* arr2, int left, int right) 
 {
   int i = left;

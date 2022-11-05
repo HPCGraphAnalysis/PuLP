@@ -110,9 +110,10 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
 #pragma omp single
 {
-  if (procid == 0 && debug) 
+  if (procid == 0 && debug) {
     printf("EVAL pulp_v bal ------------------------------\n");
-  //part_eval(g, pulp);
+    part_eval(g, pulp);
+  }
   update_pulp_data(g, pulp);
   num_swapped_1 = 0;
 }
@@ -284,9 +285,10 @@ for (uint64_t cur_outer_iter = 0; cur_outer_iter < outer_iter; ++cur_outer_iter)
 
 #pragma omp single
 {  
-  if (procid == 0 && debug) 
+  if (procid == 0 && debug) {
     printf("EVAL pulp_v ref ------------------------------\n");
-  //part_eval(g, pulp);
+    part_eval(g, pulp);
+  }
   update_pulp_data(g, pulp);
   num_swapped_2 = 0;
 }

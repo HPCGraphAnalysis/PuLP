@@ -724,7 +724,7 @@ void pulp_init_bfs_max(
 
   if (debug) printf("Task %d pulp_init_bfs() success, not initialized %lu\n", procid, not_initialized);
 
-  //part_eval(g, pulp);
+  part_eval(g, pulp);
   //update_pulp_data(g, pulp);
 
 }

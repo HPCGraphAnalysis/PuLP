@@ -298,7 +298,7 @@ int main(int argc, char **argv)
       exchange_edges(ggi, comm);
       create_graph(ggi, g);
     }
-    set_weights_graph(g);
+    //set_weights_graph(g);
     relabel_edges(g);
   }
   else
@@ -308,7 +308,7 @@ int main(int argc, char **argv)
     } else {
       create_graph_serial(ggi, g);
     }
-    set_weights_graph(g);
+    //set_weights_graph(g);
   }
   if (g->num_vert_weights > 0) {
     init_pulp_data_weighted(g, pulp, num_parts);

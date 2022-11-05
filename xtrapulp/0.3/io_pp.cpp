@@ -993,14 +993,14 @@ int output_parts(const char* filename, dist_graph_t* g,
         }
         
     std::ofstream outfile;
-    //outfile.open(filename);
+    outfile.open(filename);
 
-    //for (uint64_t i = 0; i < g->n; ++i)
-    //  outfile << global_parts[i] << std::endl;
+    for (uint64_t i = 0; i < g->n; ++i)
+      outfile << global_parts[i] << std::endl;
 
-    FILE* fp = fopen(filename, "wb");
-    fwrite(global_parts, sizeof(int32_t), g->n, fp);
-    fclose(fp);
+    //FILE* fp = fopen(filename, "wb");
+    //fwrite(global_parts, sizeof(int32_t), g->n, fp);
+    //fclose(fp);
 
     outfile.close();
   }
